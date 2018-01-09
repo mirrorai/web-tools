@@ -1,0 +1,1 @@
+python manage.py run_dev_server -h 0.0.0.0 -p 8000

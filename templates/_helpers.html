@@ -1,0 +1,115 @@
+{% from 'bootstrap/utils.html' import icon %}
+
+{% macro render_modal(id, classes='', hash=None) %}
+    <div class="modal fade" id="{{ id }}" role="dialog">
+        <div class="modal-dialog {{ classes }}">
+            <div class="modal-content">
+                {{ caller() }}
+            </div>
+        </div>
+    </div>
+    {% if hash %}
+        {% if not hash.startswith('#') %}
+            {% set hash = '#' + hash %}
+        {% endif %}
+        <script type="text/javascript">
+            $(document).ready(function () {
+                var $modal = $('#{{ id }}');
+
+                if (window.location.hash === '{{ hash }}') {
+                    $modal.modal('show');
+                }
+
+                $modal.on('shown.bs.modal', function () {
+                    setHash('{{ hash }}');
+                }).on('hidden.bs.modal', function () {
+                    setHash('#');
+                });
+            })
+        </script>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_delete_modal(
+        modal_id,
+        delete_url,
+        object_name,
+        success_callback=None,
+        error_callback=None,
+        modal_hash='delete') %}
+    {% call render_modal(modal_id, hash=modal_hash)  %}
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal">&times;</button>
+            <h4 class="modal-title">Delete confirmation</h4>
+        </div>
+        <div class="modal-body">
+            <div class="alert alert-danger hide" role="alert">
+                Error occurred while deleting. Check your connection or try again
+            </div>
+            <div class="row">
+                <div class="col-xs-2">
+                    <span class="glyphicon glyphicon-trash text-danger" style="font-size: 5em"></span>
+                </div>
+                <div class="col-xs-9 col-xs-offset-1">
+                    Are you sure you want to delete<br/>
+                    <strong>{{ object_name }}</strong>?
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div class="pull-right">
+                <button type="button" class="btn btn-default" data-dismiss="modal">No</button>
+                <button type="button" class="btn btn-danger" data-loading-text="Deleting...">Yes</button>
+            </div>
+        </div>
+    {% endcall %}
+
+    <script type="text/javascript">
+        $(document).ready(function () {
+            var $modal = $('#{{ modal_id }}');
+            var $yesBtn = $modal.find('.btn-danger');
+            var $noBtn = $modal.find('.btn-default');
+            var $alert = $modal.find('.alert');
+
+            $yesBtn.click(function () {
+                $yesBtn.button('loading');
+                $noBtn.prop('disabled', true);
+                $alert.addClass('hide');
+                $.ajax({
+                    url: '{{ delete_url }}',
+                    type: 'DELETE',
+                    success: function () {
+                        {% if success_callback %}
+                            {{ success_callback|safe }}
+                        {% endif %}
+                    },
+                    error: function () {
+                        {% if error_callback %}
+                            {{ error_callback|safe }}
+                        {% endif %}
+                        $alert.removeClass('hide');
+                    },
+                    complete: function () {
+                        $yesBtn.button('reset');
+                        $noBtn.prop('disabled', false);
+                    }
+                });
+            });
+        });
+    </script>
+{% endmacro %}
+
+{% macro easy_readable_timedelta(delta) %}
+    {% if delta < timedelta(minutes=1) %}
+        {{ delta.seconds }} seconds
+    {% elif delta < timedelta(hours=1) %}
+        {{ delta.seconds // 60 }} minutes
+        {% if delta.seconds % 60 > 0 %}
+            {{ delta.seconds % 60 }} sec
+        {% endif %}
+    {% else %}
+        {{ '%02d' | format(delta.seconds // 3600) }}:
+        {{- '%02d' | format(delta.seconds % 3600 // 60) }}:
+        {{- '%02d' | format(delta.seconds % 60) }}
+    {% endif %}
+{% endmacro %}

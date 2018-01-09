@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% set active_page = 'history' %} {# For menu highlight #}
+
+{% block title %}{{ super() }}Cameras{% endblock %}
+
+{% block styles %}
+    {{ super() }}
+    <link href="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.css') }}"
+          rel="stylesheet">
+    <!--suppress CssUnusedSymbol -->
+    <style> {# Bigger fonts for graphs #}
+        .mg-x-axis text, .mg-y-axis text, .mg-histogram .axis text, .mg-active-datapoint {
+            font-size: 1.5rem;
+        }
+    </style>
+{% endblock %}
+
+
+{% block content %}
+    {{ super() }}
+
+    <div class="container">
+        <h1>History</h1>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script type="text/javascript"
+            src="{{ url_for('static', filename='bower_components/holderjs/holder.min.js') }}"></script>
+    <script type="text/javascript"
+            src="{{ url_for('static', filename='js/jquery.snapshot-annotator.js') }}"></script>
+
+    {# Plots #}
+    <script type="text/javascript"
+            src="{{ url_for('static', filename='bower_components/d3/d3.min.js') }}"></script>
+    <script type="text/javascript"
+            src="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.min.js') }}"></script>
+{% endblock %}

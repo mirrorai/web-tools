@@ -1,0 +1,193 @@
+{% macro _access_get_identifier(resource) %}
+    {%- set resource_name = camelcase_to_snakecase(resource.__class__.__name__) -%}
+    {{- 'access-list-' + resource_name + '-dropdown' -}}
+{% endmacro %}
+
+{% set access_list_grant_button_class = 'access-list-grant-button' %}
+{% set grant_access_user_reference_form = 'access-list-grant-access-form' %}
+
+{% macro _render_access_modification_button(
+        resource, user, caption, actions,
+        class_active='btn-default',
+        class_disabled='btn-primary',
+        tooltip_text=None,
+        tooltip_placement=None) %}
+
+    {% if user in resource.users_manage %}
+        {% set action = actions['manage'] %}
+    {% elif user in resource.users_update %}
+        {% set action = actions['update'] %}
+    {% elif user in resource.users_read %}
+        {% set action = actions['read'] %}
+    {% else %}
+        {% set action = 'disabled' %}
+    {% endif %}
+
+    {% if action != 'disabled' %}
+        {% set resource_name = camelcase_to_snakecase(resource.__class__.__name__) %}
+
+        <form hidden action="{{ url_for(resource_name + '_' + action, id=resource.id) }}" method="POST">
+            {{ grant_access_user_reference_form.csrf_token }}
+            <input name="email" type="hidden" value="{{ user.email }}">
+        </form>
+        <button class="btn btn-xs {{ access_list_grant_button_class }} {{ class_active }}"
+                type="button"
+                data-loading-text="granting..."
+                {% if tooltip_text %} data-toggle="tooltip" data-container="body" title="{{ tooltip_text }}" {% endif %}
+                {% if tooltip_placement %} data-placement="{{ tooltip_placement }}" {% endif %}>
+            {{ caption }}
+        </button>
+    {% else %}
+        <button class="btn btn-xs disabled {{ class_disabled }}">{{ caption }}</button>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_access_button(resource, manage_need) %}
+    {% from 'bootstrap/utils.html' import icon %}
+
+    {% if Permission(manage_need(resource.id), RoleNeed('admin')).can() %}
+        {% set resource_name = camelcase_to_snakecase(resource.__class__.__name__) %}
+        <div class="dropdown" id="{{ _access_get_identifier(resource) }}">
+            <button class="btn btn-info dropdown-toggle"
+                    type="button"
+                    data-toggle="dropdown">
+                {{ icon('user') }} Edit access list <span class="caret"></span>
+            </button>
+            <div class="dropdown-menu row" style="width: 400px; padding-bottom: 0; padding-top: 0;">
+                <div class="alert alert-danger hide" role="alert" style="margin-bottom: 0"></div>
+                <ul class="list-group" style="margin-bottom: 0;">
+                    {% for user in resource.users_read %}
+                        <li class="list-group-item">
+                            {{ user.first_name }} {{ user.last_name }}
+                            <div class="pull-right">
+                                {% if user.id != current_user.id %}
+                                    {{ _render_access_modification_button(resource, user, 'read-only',
+                                            {'read': 'disabled', 'update': 'forbid_update', 'manage': 'forbid_update'}) }}
+                                    {{ _render_access_modification_button(resource, user, 'modify',
+                                            {'read': 'grant_update', 'update': 'disabled', 'manage': 'forbid_manage'}) }}
+                                    {{ _render_access_modification_button(resource, user, 'admin',
+                                            {'read': 'grant_manage', 'update': 'grant_manage', 'manage': 'disabled'}) }}
+                                    {{ _render_access_modification_button(resource, user, icon('remove'),
+                                            {'read': 'forbid_read', 'update': 'forbid_read', 'manage': 'forbid_read'},
+                                            class_active='btn-danger',
+                                            tooltip_text='Forbid access',
+                                            tooltip_placement='right') }}
+                                {% else %}
+                                    <span class="badge">It's you</span>
+                                {% endif %}
+                            </div>
+                        </li>
+                    {% endfor %}
+                    <li class="list-group-item">
+                        <form action="{{ url_for(resource_name + '_grant_read', id=resource.id) }}"
+                              class="{{ grant_access_user_reference_form }} form-inline"
+                              method="POST">
+
+                            {{ grant_access_user_reference_form.csrf_token }}
+
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <span class="input-group-addon">
+                                        {{ icon('envelope') }}
+                                    </span>
+                                    <input required type="text" class="form-control" name="email"
+                                           placeholder="Email of user">
+                                    <span class="input-group-btn">
+                                        <button class="btn btn-default" type="button" data-loading-text="Granting...">
+                                            Grant access
+                                        </button>
+                                    </span>
+                                </div>
+                                <p class="help-block error-block hide"></p>
+                            </div>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    {% endif %}
+{% endmacro %}
+
+{% macro render_access_button_scripts(resource) %}
+    <script type="text/javascript">
+        $(document).ready( function() {
+            var accessListHash = '#access-list';
+            var $dropdown = $('#{{ _access_get_identifier(resource) }}');
+            var $alert = $dropdown.find('.alert');
+
+            {# Auto open dropdown #}
+            if (window.location.hash === accessListHash) {
+                {# FIXME: Dirty hack here, because calling without delay don't toggle dropdown #}
+                setTimeout(function () { $dropdown.find('.dropdown-toggle').dropdown('toggle'); }, 50);
+            }
+
+            {# Add/remove anchor on dropdown show/hide #}
+            $dropdown.on('shown.bs.dropdown', function () {
+                setHash(accessListHash);
+            }).on('hidden.bs.dropdown', function () {
+                setHash('#')
+            });
+
+            {# Access granting scripts #}
+            $dropdown.find('.{{ grant_access_user_reference_form }}').find('button').click(function() {
+                var $this = $(this);
+                var $form = $(this).parents('form');
+
+                $this.button('loading');
+                $.ajax({
+                    url: $form.prop('action'),
+                    type: 'POST',
+                    data: $form.serialize(),
+                    dataType: 'json',
+                    success: function () {
+                        window.location.reload();
+                    },
+                    error: function (jqXHR) {
+                        if (jqXHR.status && jqXHR.status === 400) {
+                            //noinspection JSUnresolvedVariable
+                            $.each(jqXHR.responseJSON, function(field, errors) {
+                                if (field !== 'email') {
+                                    return;
+                                }
+                                $form.find('.error-block').html(errors.join('\n'));
+                            });
+                        } else {
+                            $form.find('.error-block').html(
+                                    'Error occurred while granting access. Check you connection or try again'
+                            );
+                        }
+
+                        $form.find('.error-block').removeClass('hide');
+                        $form.find('.form-group').addClass('has-feedback has-error');
+                        $this.button('reset');
+                    }
+                });
+            });
+
+            {# Grant permissions scripts #}
+            $dropdown.find('.{{ access_list_grant_button_class }}').click(function (event) {
+                var $this = $(this);
+                var $form = $this.prev('form');
+
+                event.stopPropagation();
+                $alert.addClass('hide');
+
+                $this.button('loading');
+                $.ajax({
+                    url: $form.prop('action'),
+                    type: 'POST',
+                    data: $form.serialize(),
+                    dataType: 'json',
+                    success: function () {
+                        window.location.reload();
+                    },
+                    error: function () {
+                        $alert.html('Error occurred while granting permission. Check your connection or try again');
+                        $alert.removeClass('hide');
+                        $this.button('reset');
+                    }
+                });
+            });
+        });
+    </script>
+{% endmacro %}

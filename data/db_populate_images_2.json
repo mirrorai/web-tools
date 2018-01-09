@@ -1,0 +1,20 @@
+{
+	"commands": [
+		{
+			"name": "add_new_images",
+			"base-dir": "/home/local/projects/data/blood_cells_16_12_28"
+		},
+		{
+			"name": "add_new_images",
+			"base-dir": "/home/local/projects/data/blood_cells_16_12_30"
+		},
+		{
+			"name": "add_new_images",
+			"base-dir": "/home/local/projects/data/blood_cells_17_01_14"
+		},
+		{
+			"name": "add_new_images",
+			"base-dir": "/home/local/projects/data/blood_cells_17_02_06_part1"
+		}
+	]
+}

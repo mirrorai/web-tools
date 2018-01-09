@@ -1,0 +1,147 @@
+{% from 'bootstrap/utils.html' import icon %}
+
+{% macro render_errors(field) %}
+    {%- if field.errors %}
+        {%- for error in field.errors %}
+            <p class="help-block">{{ error }}</p>
+        {%- endfor %}
+    {%- elif field.description -%}
+        <p class="help-block">{{ field.description|safe }}</p>
+    {%- endif %}
+{% endmacro %}
+
+{% macro render_custom_form_modal(
+        action,
+        modal_id,
+        modal_title,
+        modal_hash=None,
+        errors_callback='$alert.html("Failed to save form. Check your connection or try again"); $alert.removeClass("hide")',
+        reset_callback='') %}
+    {% set save_button_class = 'form-save-button' %}
+
+    {# FIXME: Remove this workaround on line below when https://github.com/pallets/jinja/issues/371 resolved #}
+    {% set content = caller() %}
+    {% from '_helpers.html' import render_modal %}
+    {% call render_modal(modal_id, hash=modal_hash) %}
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal">&times;</button>
+            <h4 class="modal-title">{{ modal_title }}</h4>
+        </div>
+
+        <div class="modal-body">
+            <div class="alert alert-danger hide" role="alert"></div>
+            <form action="{{ action }}" method="POST">
+                {{ content }}
+            </form>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">
+                Cancel
+            </button>
+            <button type="button" class="btn btn-success {{ save_button_class }}" data-loading-text="Saving...">
+                Save
+            </button>
+        </div>
+    {% endcall %}
+
+    <script type="text/javascript">
+        $(document).ready(function () {
+            var loading = false;
+            var $modal = $('#{{ modal_id }}');
+            var $form = $modal.find('form');
+            var $alert = $modal.find('.alert');
+
+            {# Auto reset form if modal has been closed without saving #}
+            $modal.on('hidden.bs.modal', function () {
+                if (!loading) { {# Don't reset while saving results #}
+                    $alert.addClass('hide');
+                    $form[0].reset();
+                    $modal[0].dataset['hashOnSuccess'] = '#';
+                    {{ reset_callback|safe }}
+                }
+            });
+
+            {# Process form post on save click #}
+            $modal.find('.{{ save_button_class }}').click( function () {
+                var $saveBtn = $(this);
+                var $cancelBtn = $saveBtn.prev('button');
+
+                $alert.addClass('hide');
+                loading = true;
+                $saveBtn.button('loading');
+                $cancelBtn.prop('disabled', true);
+
+                $.ajax({
+                    url: $form.prop('action'),
+                    type: 'POST',
+                    data: $form.serialize(),
+                    dataType: 'json',
+                    success: function () {
+                        setHash($modal[0].dataset['hashOnSuccess'] || '#');
+                        window.location.reload();
+                    },
+                    error: function (jqXHR) {
+                        if (jqXHR.status && jqXHR.status === 400) {
+                            {{ errors_callback|safe }}
+                        } else {
+                            $alert.html('Error occurred sending data. Check your connection or try again');
+                            $alert.removeClass('hide');
+                        }
+                        $saveBtn.button('reset');
+                        $cancelBtn.prop('disabled', false);
+                    },
+                    complete: function() {
+                        loading = false;
+                    }
+                });
+            });
+        });
+    </script>
+{% endmacro %}
+
+{% macro render_form_modal(form, action, modal_id, modal_title, modal_hash=None) %}
+    {% set reset_callback = "
+        $form.find('.form-group').removeClass('has-feedback has-success has-error');
+        $form.find('.form-control-feedback').removeClass('glyphicon-ok glyphicon-remove');
+        $form.find('.error-block').addClass('hide');
+        $form.find('.help-block').not('.error-block').removeClass('hide');" %}
+    {% set errors_callback = reset_callback + "
+        $form.find('.form-group').addClass('has-feedback has-success');
+        $form.find('.form-control-feedback').addClass('glyphicon-ok');
+        $.each(jqXHR.responseJSON, function(field, errors) {{
+            var $formGroup = $form.find('[name=\"' + field + '\"]').parents('.form-group');
+            $formGroup.removeClass('has-success').addClass('has-error');
+            $formGroup.find('.form-control-feedback')
+                .removeClass('glyphion-ok')
+                .addClass('glyphicon-remove');
+            $formGroup.find('.error-block').removeClass('hide').html(errors.join('\\n'));
+            $formGroup.find('.help-block').not('.error-block').addClass('hide');
+        }});" %}
+    {% call render_custom_form_modal(
+            action,
+            modal_id,
+            modal_title,
+            modal_hash=modal_hash,
+            errors_callback=errors_callback,
+            reset_callback=reset_callback) %}
+        {% for field in form if field.widget.input_type == 'hidden' %}
+            {{ field }}
+        {% endfor %}
+
+        {% for field in form if field.widget.input_type != 'hidden'%}
+            <div class="form-group">
+                <label class="control-label">{{ field.label.text|safe }}</label>
+                    <div class="input-group">
+                        <span class="input-group-addon">{{ icon(form.icons.get(field.name, 'pencil')) }}</span>
+                        {{ field(class="form-control") }}
+                        <span class="glyphicon form-control-feedback"></span>
+                    </div>
+                    <p class="help-block error-block hide"></p>
+                    {% if field.description %}
+                        <p class="help-block">{{ field.description|safe }}</p>
+                    {% endif %}
+            </div>
+        {% endfor %}
+    {% endcall %}
+{% endmacro %}

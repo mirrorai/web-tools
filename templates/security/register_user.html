@@ -1,0 +1,25 @@
+{% extends 'security/base.html' %}
+
+{% block title %}{{ super() }}Register{% endblock %}
+
+{% block panel_title %}Sign Up{% endblock %}
+{% block panel_right_content %}<a href="{{ url_for('security.login') }}">Sign In</a>{% endblock %}
+
+{% block form_content %}
+    <form action="{{ url_for('security.register') }}" method="POST" name="register_user_form">
+        {% import 'bootstrap/wtf.html' as wtf %}
+        {{ register_user_form.hidden_tag() }}
+        {{ wtf.form_errors(register_user_form, hiddens='only') }}
+
+        {{ wtf.form_field(register_user_form.first_name) }}
+        {{ wtf.form_field(register_user_form.last_name) }}
+        {{ wtf.form_field(register_user_form.middle_name) }}
+        {{ wtf.form_field(register_user_form.email) }}
+        {{ wtf.form_field(register_user_form.password) }}
+        {% if register_user_form.password_confirm %}
+            {{ wtf.form_field(register_user_form.password_confirm) }}
+        {% endif %}
+
+        <input class="btn btn-success btn-lg btn-block" name="submit" type="submit" value="Register">
+    </form>
+{% endblock %}

@@ -1,0 +1,11 @@
+<p>Hello, <strong>{{ user.first_name }} {{ user.last_name }}</strong>!</p>
+<p>
+    <a href="{{ url_for('trigger', id=trigger.id, _external=True) }}">{{ trigger.name }}</a> was activated for
+    <a href="{{ url_for('camera', id=camera.id, _external=True) }}">{{ camera.name }}</a>:
+    <ul>
+        <li>Date: {{ trigger_event.timestamp.format('YYYY-MM-DD HH:mm:ss ZZ') }}</li>
+        <li>Reason: {{ trigger_event.tooltip() }}</li>
+        <li><a href="{{ url_for('snapshot', id=trigger_event.recognition.snapshot.id, _external=True) }}">Snapshot</a></li>
+    </ul>
+</p>
+<p>Don't reply to this message.</p>

@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ super() }}{{ trigger.name }}{% endblock %}
+
+{% set list_group_lists = [
+    ['id', 'tooltip', 'camera_with_link', 'reactivation_interval', 'events_count', 'money_account',
+     'max_snapshots_to_store'],
+    ['is_subscribed']
+   ]%}
+{% set parameters_modal_id = 'trigger-parameters-modal' %}
+{% set delete_modal_id = 'trigger-delete-modal' %}
+{% set pagination_args = {'id': trigger.id, 'per_page': events_paginated.per_page} %}
+
+{% block content %}
+    {{ super() }}
+
+    <div class="container">
+        <h1>{{ trigger.name }}</h1>
+        <div class="row">
+            {% from '_trigger_list_group.html' import trigger_list_group_content with context %}
+            <div class="col-lg-4">
+                {{ trigger_list_group_content(trigger, list_group_lists[0]) }}
+            </div>
+            <div class="col-lg-4">
+                {{ trigger_list_group_content(trigger, list_group_lists[1]) }}
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-lg-12">
+                <div class="btn-group">
+                    {% if Permission(TriggerUpdateNeed(trigger.id), RoleNeed('admin')).can() %}
+                        <button type="button" class="btn btn-primary"
+                                data-toggle="modal" data-target="#{{ parameters_modal_id }}">
+                            {{ icon('edit') }} Parameters
+                        </button>
+                    {% endif %}
+                    {% if Permission(TriggerManageNeed(trigger.id), RoleNeed('admin')).can() %}
+                        <button type="button"
+                                class="btn btn-danger"
+                                data-target="#{{ delete_modal_id }}"
+                                data-toggle="modal">
+                            {{ icon('trash') }} Delete
+                        </button>
+                    {% endif %}
+                </div>
+
+                <div class="btn-group">
+                    {%  from '_access_list.html' import render_access_button with context %}
+                    {{ render_access_button(trigger, TriggerManageNeed) }}
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-3">
+                <h2>Events</h2>
+            </div>
+            <div class="col-lg-6 text-center">
+                {% if events_paginated.pages > 1 %}
+                    {% from 'bootstrap/pagination.html' import render_pagination %}
+                    {{ render_pagination(events_paginated, 'trigger', args=pagination_args) }}
+                {% endif %}
+            </div>
+        </div>
+        <div class="row">
+            {% for event in events_paginated.items %}
+                <div class="col-lg-3 col-md-4 col-sm-6">
+                    <div class="thumbnail">
+                        <div class="recognition-viewer"
+                             data-recognition-json='{{ event.recognition.json()|tojson }}'
+                             data-preview-width=400
+                             data-toggle-modal="on"
+                             {% if Permission(CameraUpdateNeed(event.recognition.camera.id), RoleNeed('admin')).can() %}
+                                data-allow-mark-as-fp="true"
+                             {% else %}
+                                data-allow-mark-as-fp="false"
+                             {% endif %}>
+                        </div>
+                        <div class="caption">
+                            <p>
+                                {{ icon('calendar') }}
+                                {{ momentjs(event.timestamp).format_full() }}
+                            </p>
+                            <p>{{ icon('flag') }} {{ event.tooltip() }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% if loop.index % 4 == 0 %}
+                    <div class="clearfix visible-lg"></div>
+                {% endif %}
+                {% if loop.index % 3 == 0 %}
+                    <div class="clearfix visible-md"></div>
+                {% endif %}
+                {% if loop.index % 2 == 0 %}
+                    <div class="clearfix visible-sm"></div>
+                {% endif %}
+            {% else %}
+                <div class="col-lg-12 text-center"><h3>No events occurred</h3></div>
+            {% endfor %}
+        </div>
+        <div class="text-center">
+            {% if events_paginated.pages > 1 %}
+                {{ render_pagination(events_paginated, 'trigger', args=pagination_args) }}
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+
+    {# Trigger list group script #}
+    {% from '_trigger_list_group.html' import trigger_list_group_script with context %}
+    {% for list_group_list in list_group_lists %}
+      {{ trigger_list_group_script(list_group_list) }}
+    {% endfor %}
+
+    {# Snapshot annotator #}
+    <script type="text/javascript"
+            src="{{ url_for('static', filename='bower_components/holderjs/holder.min.js') }}"></script>
+    <script type="text/javascript"
+            src="{{ url_for('static', filename='js/jquery.snapshot-annotator.js') }}"></script>
+
+    {% from '_snapshot_annotator.html' import snapshot_annotator with context %}
+    {{ snapshot_annotator() }}
+
+    {# Access button #}
+    {% from '_access_list.html' import render_access_button_scripts with context %}
+    {{ render_access_button_scripts(trigger) }}
+
+    {# Delete modal #}
+    {% from '_helpers.html' import render_delete_modal %}
+    {{ render_delete_modal(
+            delete_modal_id,
+            url_for('trigger_delete', id=trigger.id),
+            'trigger "' + trigger.name + '"',
+            success_callback='$(window).attr("location", "' + url_for('triggers') + '");') }}
+
+    {# Parameters modal #}
+    {% from '_forms.html' import render_form_modal %}
+    {{ render_form_modal(
+        trigger_parameters_form,
+        url_for('trigger_parameters_set', id=trigger.id),
+        parameters_modal_id,
+        'Trigger parameters',
+        modal_hash='parameters') }}
+{% endblock %}

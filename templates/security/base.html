@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    {% from 'bootstrap/utils.html' import flashed_messages %}
+    {{ flashed_messages() }}
+
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-6 col-lg-offset-3">
+                <div class="panel panel-info">
+                    <div class="panel-heading">
+                        <div class="panel-title">{% block panel_title %}{% endblock %}</div>
+                        <div style="float:right; font-size: 80%; position: relative; top:-10px">
+                            {% block panel_right_content %}{% endblock %}
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        {% block form_content %}{% endblock %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+{% set active_page = 'marking' %} {# For menu highlight #}
+{% block title %}{{ super() }}Marking{% endblock %}
+{% block styles %}
+{{ super() }}
+<link href="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.css') }}"
+  rel="stylesheet">
+<link href="{{ url_for('static', filename='css/dashboard.css') }}"
+  rel="stylesheet">
+<link href="{{ url_for('static', filename='bower_components/bootstrap-select/dist/css/bootstrap-select.min.css') }}"
+  rel="stylesheet">
+<!--suppress CssUnusedSymbol -->
+<style> {# Bigger fonts for graphs #}
+  .mg-x-axis text, .mg-y-axis text, .mg-histogram .axis text, .mg-active-datapoint {
+  font-size: 1.5rem;
+  }
+</style>
+{% endblock %}
+{% block content %}
+{{ super() }}
+
+{% if is_empty %}
+  {% set disabled_if_empty = "disabled" %}
+{% else %}
+  {% set disabled_if_empty = "" %}
+{% endif %}
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-sm-12 col-md-12 col-lg-8 col-lg-offset-1 col-offset-extra">
+      <div id="img-container" class="placeholder noselect">
+        <canvas id="editor" style="opacity: 0.0" class="canvas-editor"></canvas>
+        {%- if not is_empty -%}
+        <img id="img-main" style="display: none;" class="img-main" src="{{ url_for('image', id=image_info['id'], minside=720) }}"></img>
+        {%- else -%}
+        <img id="img-main" style="display: none;" class="img-main" src=""></img>
+        {%- endif -%}
+        <span class="large-text" id="loading-text" style="display: none;">Загрузка...</span>
+
+        {%- if is_empty -%}
+        <span class="large-text" id="empty-text">Нет данных для разметки</span>
+        {%- else -%}
+        <span class="large-text" id="empty-text" style="display:none;">Нет данных для разметки</span>
+        {%- endif -%}
+
+        <span class="large-text" id="bad-text" style="display:none;">Плохое изображение</span>
+
+      </div>
+    </div>
+    <div class="col-lg-2 col-extra hidden-md hidden-sm hidden-xs">
+      <div class="sidebar-about">
+        <span class="about-line-item" id="batch-select-sidebar">
+          <a id="batch-select-btn" href="javascript:void(0);"></a>
+          <span id="count-batch-text">({{ batch_not_marked_count }})</span>
+        </span>
+        {%- if not is_empty and sample_info['tag']|length > 1 -%}
+        <span class="about-line-item" id="sample-tag-sidebar">
+          Тэг: {{ sample_info['tag'] }}
+        </span>
+        {%- elif is_empty -%}
+        <span class="about-line-item" id="sample-tag-sidebar">
+          Нет изображений
+        </span>
+        {%- endif -%}
+
+        <span class="about-line-item" id="count-text">Осталось всего: {{ count_not_marked }}</span>
+      </div>
+      <div class="sidebar">
+        <ul class="nav nav-sidebar">
+
+          <li><a id="next-btn" class="{{ disabled_if_empty }}" href="#">Вперед</a></li>
+          <li><a id="next-other-btn" class="{{ disabled_if_empty }}" href="#">Другой пациент</a></li>
+          <li><a id="back-btn" class="disabled" href="#">Назад</a></li>
+
+        </ul>
+        <ul class="nav nav-sidebar">
+
+          <li><a id="cyto-btn" class="{{ disabled_if_empty }}" href="#">Цитохимия</a></li>
+          <li><a id="small-resol-btn" class="{{ disabled_if_empty }}" href="#">Малое разрешение</a></li>
+          <li><a id="hard-btn" class="{{ disabled_if_empty }}" href="#">Сложный пример</a></li>
+          <li><a id="bad-btn" class="{{ disabled_if_empty }}" href="#">Плохое изображение</a></li>
+          <li><a id="clear-btn" class="{{ disabled_if_empty }}" href="#">Очистить</a></li>
+
+        </ul>
+      </div>
+      <div id="bbox-info" class="sidebar">
+        <ul class="nav nav-sidebar">
+          <li>
+            <div class="active">Свойства</a>
+          </li>
+          <li>
+            <div class="type-label" href="javascript:void(0);">Тип клетки: <span id="current-bbox-type"></span></div>
+          </li>
+
+          {%- for hc_name, hc_label, categories in cell_type_data -%}
+          <li class="item-select-type">
+            <a class="cell-type-btn" class="{{ disabled_if_empty }}" href="#" data-name="{{ hc_name }}">{{ hc_label }}</a>
+          </li>
+          {%- endfor -%}
+
+          <li id="item-rect-reset" style="display: none;">
+            <a id="rect-reset-btn" href="">Удалить прямоугольник</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<i style="position: absolute;" id="type-tooltip" data-toggle="tooltip" data-placement="right"
+          title="cell type" data-animation="false" data-trigger="manual"></i>
+
+<!-- Modal cell type-->
+<div id="popup-select-cell-type" class="modal" role="dialog">
+  <div class="modal-dialog dialog-cell-type">
+    <!-- Modal content-->
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Выберете тип клетки</h4>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-12">
+            <div id="type-sel-warning" class="type-not-selected-label">Тип клетки не выбран</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-12">
+            <div class="form-group">
+
+              <div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
+              {%- for hc_name, hc_label, categories in cell_type_data -%}
+                <div class="section-hc" id="section-{{ hc_name }}" style="display: none;">
+                  <h4>{{ hc_label }}</h4>
+                  {%- for c_name, c_label, cell_types in categories -%}
+                  <div class="panel panel-default">
+                    <div class="panel-heading" data-toggle="collapse" data-target="#collapse_{{c_name}}"
+                      data-parent="#accordion" role="tab" id="heading_{{c_name}}">
+                      <h4 class="panel-title">
+                        <a role="button">
+                          {{ c_label }}
+                        </a>
+                      </h4>
+                    </div>
+                    <div id="collapse_{{c_name}}" class="panel-collapse collapse" role="tabpanel" aria-labelledby="heading_{{c_name}}">
+                      <div class="panel-body panel-cell-type-fixed">
+                        <div class="row" style="text-align: center;">
+                          {%- for ct in cell_types -%}
+                          <div data-id="{{ ct[0] }}" class="type-pick-btn" style="display: inline-block;">{{ ct[1] }}</div>
+                          {%- endfor -%}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {%- endfor -%}
+                </div>
+              {%- endfor -%}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">ОК</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal batch-->
+<div id="popup-select-batch" class="modal" role="dialog">
+  <div class="modal-dialog dialog-batch">
+    <!-- Modal content-->
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Выберете батч</h4>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-12">
+            <div id="type-sel-warning" class="type-not-selected-label">Батч не выбран</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-12">
+            <div class="panel-body panel-cell-type-fixed">
+              <div class="row" style="text-align: center;">
+                {% for batch in batch_data %}
+                <div batch-id="{{ batch['id'] }}" class="type-pick-btn" style="display: inline-block;">{{ batch['name'] }}</div>
+                {%- endfor -%}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">ОК</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/holderjs/holder.min.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='js/jquery.snapshot-annotator.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/bootstrap-select/js/bootstrap-select.js') }}"></script>
+
+{# Plots #}
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/d3/d3.min.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.min.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='js/marking-editor.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='js/marking-manager.js') }}"></script>
+
+<script type="text/javascript">
+  function getRandomInt(min, max) {
+     return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  $(document).ready(function() {
+
+    {%- if not is_empty -%}
+
+    var data = {}
+
+    data.size = {
+      "width": {{ image_info['width'] }},
+      "height": {{ image_info['height'] }}
+    };
+
+    data.bboxes = [
+        {%- for bbox in bboxes[:-1] -%}
+        {
+          "x": {{ bbox['x'] }},
+          "y": {{ bbox['y'] }},
+          "w": {{ bbox['w'] }},
+          "h": {{ bbox['h'] }},
+          "ignore": {{ 1 if bbox['ignore'] else 0 }},
+          "class": {{ bbox['class'] }}
+        },
+        {%- endfor -%}
+        {%- if bboxes|length > 0 -%}
+        {
+          "x": {{ bboxes[-1]['x'] }},
+          "y": {{ bboxes[-1]['y'] }},
+          "w": {{ bboxes[-1]['w'] }},
+          "h": {{ bboxes[-1]['h'] }},
+          "ignore": {{ 1 if bboxes[-1]['ignore'] else 0 }},
+          "class": {{ bboxes[-1]['class'] }}
+        }
+        {%- endif -%}
+    ];
+
+    data.detections = [
+        {%- for det in detections[:-1] -%}
+        {
+          "x": {{ det['x'] }},
+          "y": {{ det['y'] }},
+          "w": {{ det['w'] }},
+          "h": {{ det['h'] }},
+          "score": {{ det['score'] }},
+          "class": {{ det['class'] }},
+          "is_matched": {{ 1 if det['is_matched'] else 0 }},
+          "detector_id": {{ detections[-1]['detector_id'] }}
+        },
+        {%- endfor -%}
+        {%- if detections|length > 0 -%}
+        {
+          "x": {{ detections[-1]['x'] }},
+          "y": {{ detections[-1]['y'] }},
+          "w": {{ detections[-1]['w'] }},
+          "h": {{ detections[-1]['h'] }},
+          "score": {{ detections[-1]['score'] }},
+          "class": {{ detections[-1]['class'] }},
+          "is_matched": {{ 1 if detections[-1]['is_matched'] else 0 }},
+          "detector_id": {{ detections[-1]['detector_id'] }}
+        }
+        {%- endif -%}
+    ];
+
+    data.image_id = {{ image_info['id'] }}
+    data.id = {{ sample_info['id'] }};
+    data.batch_id = {{ sample_info['batch_id'] }};
+    data.is_bad = {{ 1 if sample_info['is_bad'] else 0 }};
+    data.cell_type_id = {{ for_cell_type_id }};
+    data.is_hard = {{ 1 if sample_info['is_hard'] else 0 }};
+    data.sample_tag = "{{ sample_info['tag'] }}";
+    data.is_cyto = {{ 1 if sample_info['is_cyto'] else 0 }};
+    data.is_small_resol = {{ 1 if sample_info['is_small_resol'] else 0 }};
+    data.not_marked_count = {{ not_marked_count }};
+    data.batch_not_marked_count = {{ batch_not_marked_count }};
+
+    data.prev_id = {{ history_data['prev_id'] }};
+    data.next_id = {{ history_data['next_id'] }};
+    data.has_other_tag = {{ 1 if history_data['has_other_tag'] else 0 }};
+
+
+    MarkingManager.init(data, false);
+
+    {%- else -%}
+
+    var data = {};
+    data.batch_id = {{ sample_info['batch_id'] }};
+    data.prev_id = {{ history_data['prev_id'] }};
+    data.next_id = {{ history_data['next_id'] }};
+    data.not_marked_count = {{ not_marked_count }};
+
+    MarkingManager.init(data, true);
+
+    {%- endif -%}
+  });
+</script>
+{% endblock %}

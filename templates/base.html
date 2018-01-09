@@ -1,0 +1,156 @@
+{% extends "bootstrap/base.html" %}
+
+{# Usefull bootstrap utils #}
+{% from 'bootstrap/utils.html' import icon %}
+
+{# Extend it by using {{ super() }} #}
+{% block title %}{{ config_tag[0]|default('') }}{{ config['SITE_NAME'] }} - {% endblock %}
+
+{% block styles %}
+    {{ super() }}
+
+    {# Font-awesome #}
+    <link href="{{ url_for('static', filename='bower_components/font-awesome/css/font-awesome.min.css') }}"
+          rel="stylesheet">
+
+    {# Common CSS modifiers #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-callout.css') }}">
+    <!--suppress CssUnusedSymbol -->
+    <style>
+        .modal-trigger {
+            cursor: pointer;
+        }
+
+        .vcenter {
+            display: inline-block;
+            vertical-align: middle;
+            float: none;
+        }
+
+        .tooltip-inner {
+            max-width: 500px !important;
+        }
+    </style>
+{% endblock %}
+
+{% block head %}
+    {{ super() }}
+
+    {# Moment.js #}
+    <script type="text/javascript"
+            src="{{ url_for('static', filename='bower_components/moment/min/moment-with-locales.min.js') }}"></script>
+
+    <script type="text/javascript">
+        var locale = window.navigator.userLanguage || window.navigator.language;
+        moment.locale(locale);
+    </script>
+{% endblock %}
+
+{% block navbar %}
+    {% set active_page = active_page|default('__not-recognized__') %}
+
+    <nav class="navbar navbar-default">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="{{ url_for('index') }}">
+                    Web Annotation Tools
+                </a>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+
+                {% if config_tag %}
+                     <ul class="nav navbar-nav">
+                        <li>
+                            <p class="navbar-text" style="color: red">
+                                {{ icon('warning-sign') }} {{ config_tag[1] }} version
+                            </p>
+                        </li>
+                    </ul>
+                {% endif %}
+
+                <ul class="nav navbar-nav navbar-right">
+                    {% if current_user.has_role('admin') %}
+                        <li>
+                            <a href="{{ url_for('admin.index') }}">
+                                {{ icon('wrench') }}
+                                Admin
+                            </a>
+                        </li>
+                    {% endif %}
+                    {% if current_user.is_authenticated %}
+                        <li{% if active_page == 'my_profile' %} class="active"{% endif %}>
+                            <a href="{{ url_for('user_my_profile') }}">
+                                {{ icon('user') }}
+                                Signed in as <strong>{{ current_user.first_name }} {{ current_user.last_name }}</strong>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('security.logout') }}">
+                                {{ icon('log-out') }} Logout
+                            </a>
+                        </li>
+                    {% else %}
+                        <li>
+                            <a href="{{ url_for('security.login') }}">
+                                {{ icon('log-in') }} Sign in
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    {% from 'bootstrap/utils.html' import flashed_messages %}
+    {{ flashed_messages(dismissible=True) }}
+
+
+
+
+
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+
+    {# Common JavaScript #}
+    <!--suppress JSUnusedLocalSymbols -->
+    <script type="text/javascript">
+        if (!Array.prototype.last) {
+            Array.prototype.last = function () {
+                return this[this.length - 1];
+            };
+        }
+
+        if (!Array.prototype.first) {
+            Array.prototype.first = function () {
+                return this[0];
+            };
+        }
+
+        $(document).ready(function() {
+            // $('[data-toggle="tooltip"]').tooltip({html: true});
+        });
+
+        function setHash(hash) {
+            {# http://stackoverflow.com/questions/3870057/how-can-i-update-window-location-hash-without-jumping-the-document #}
+            if (!hash.startsWith('#')) {
+                hash = '#' + hash;
+            }
+            if (history.pushState) {
+                // IE10, Firefox, Chrome, etc.
+                window.history.pushState(null, null, hash);
+            } else {
+                // IE9, IE8, etc
+                window.location.hash = hash;
+            }
+        }
+    </script>
+{% endblock %}

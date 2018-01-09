@@ -1,0 +1,129 @@
+{
+	"commands": [
+		{
+			"name": "add_categories",
+			"categories": [
+				{
+					"name": "blast_cells",
+					"label": "Бластные клетки",
+					"hyper_category": "myelogram",
+					"index": 1
+				},
+				{
+					"name": "neutrophils",
+					"label": "Нейтрофилы",
+					"hyper_category": "myelogram",
+					"index": 2
+				},
+				{
+					"name": "eosinophils",
+					"label": "Эозинофилы",
+					"hyper_category": "myelogram",
+					"index": 3
+				},
+				{
+					"name": "basophils",
+					"label": "Базофилы",
+					"hyper_category": "myelogram",
+					"index": 4
+				},
+				{
+					"name": "monocytic_cells",
+					"label": "Моноцитарные клетки",
+					"hyper_category": "myelogram",
+					"index": 5
+				},
+				{
+					"name": "lymphocytes",
+					"label": "Лимфоциты",
+					"hyper_category": "myelogram",
+					"index": 6
+				},
+				{
+					"name": "erythrokaryocytes",
+					"label": "Эритрокариоциты",
+					"hyper_category": "myelogram",
+					"index": 7
+				},
+				{
+					"name": "megakaryocytes",
+					"label": "Мегакариоциты",
+					"hyper_category": "myelogram",
+					"index": 8
+				},
+				{
+					"name": "anaplastic_blast_cells",
+					"label": "Анаплазированные бластные клетки",
+					"hyper_category": "pathological",
+					"index": 1
+				},
+				{
+					"name": "lymphoblasts",
+					"label": "Лимфобласты",
+					"hyper_category": "pathological",
+					"index": 2
+				},
+				{
+					"name": "myeloblasts",
+					"label": "Миелобласты",
+					"hyper_category": "pathological",
+					"index": 3
+				},
+				{
+					"name": "atypical_promyelocytes",
+					"label": "Атипичные промиелоциты",
+					"hyper_category": "pathological",
+					"index": 4
+				},
+				{
+					"name": "monoblasts",
+					"label": "Монобласты",
+					"hyper_category": "pathological",
+					"index": 5
+				},
+				{
+					"name": "erythroblasts",
+					"label": "Эритробласты",
+					"hyper_category": "pathological",
+					"index": 6
+				},
+				{
+					"name": "pathologic_megakaryocytes",
+					"label": "Мегакариоциты",
+					"hyper_category": "pathological",
+					"index": 7
+				},
+				{
+					"name": "all_macrophages",
+					"label": "Все",
+					"hyper_category": "macrophages",
+					"index": 1
+				},
+				{
+					"name": "stromal_cells",
+					"label": "Стромальные клетки",
+					"hyper_category": "other",
+					"index": 1
+				},
+				{
+					"name": "dispoes",
+					"label": "Диспоэз",
+					"hyper_category": "other",
+					"index": 3
+				},
+				{
+					"name": "other",
+					"label": "Прочее",
+					"hyper_category": "other",
+					"index": 2
+				},
+				{
+					"name": "all_tumor_cells",
+					"label": "Все",
+					"hyper_category": "tumor_cells",
+					"index": 1
+				}
+			]
+		}
+	]
+}

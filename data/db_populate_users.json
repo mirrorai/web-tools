@@ -1,0 +1,43 @@
+{
+    "commands": [
+        {
+          "name": "add_roles",
+          "roles": [
+            {
+              "name": "admin",
+              "description": "Has access to everything"
+            },
+            {
+              "name": "demo",
+              "description": "Demo users are used for demonstration purposes"
+            }
+          ]
+        },
+        {
+          "name": "add_users",
+          "users": [
+            {
+              "first_name": "Admin",
+              "middle_name": "Admin",
+              "last_name": "Admin",
+              "email": "admin@mirror-ai.com",
+              "password": "realpassword",
+              "roles": [
+                "admin"
+              ],
+              "active": true
+            },
+            {
+              "first_name": "Demo",
+              "last_name": "Demo",
+              "email": "demo@mirror-ai.com",
+              "password": "demodemo",
+              "roles": [
+                "demo"
+              ],
+              "active": true
+            }
+          ]
+        }
+    ]
+}

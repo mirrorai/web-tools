@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% set active_page = 'triggers' %}
+
+{% block title %}{{ super() }}Triggers{% endblock %}
+
+{% set list_group_lists = [
+    ['id', 'tooltip', 'camera', 'reactivation_interval',  'events_count', 'money_account'],
+    ['is_subscribed']
+   ] %}
+{% set deletion_trigger_class = 'delete-trigger' %}
+{% set pagination_args = {'per_page': triggers_paginated.per_page} %}
+
+{% block content %}
+    {{ super() }}
+
+    <div class="container">
+        <h1>Triggers</h1>
+        <div class="row">
+            {% if triggers_paginated.pages > 0 %}
+                <div class="col-lg-2 vcenter" style="margin-top: 15px; margin-bottom: 20px">
+                    {% if Permission(TriggerCreateNeed(), RoleNeed('admin')).can() %}
+                        <button type="button" class="btn btn-primary" onclick="trigger_new()">
+                            {{ icon('plus') }} New trigger
+                        </button>
+                    {% endif %}
+                </div>
+                <div class="col-lg-8 text-center vcenter">
+                    {% if triggers_paginated.pages > 1 %}
+                        {% from 'bootstrap/pagination.html' import render_pagination %}
+                        {{ render_pagination(
+                                triggers_paginated,
+                                'triggers',
+                                args=pagination_args) }}
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="col-lg-12 text-center">
+                    <h2>You have no triggers</h2>
+                    {% if Permission(TriggerCreateNeed(), RoleNeed('admin')).can() %}
+                        <button type="button" class="btn btn-lg btn-primary" onclick="trigger_new()">
+                            {{ icon('plus') }} New trigger
+                        </button>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="panel-group">
+            {% for trigger in triggers_paginated.items %}
+                <div class="panel {{ 'panel-default' if trigger.camera else 'panel-warning' }}">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">
+                            <a href="{{ url_for('trigger', id=trigger.id) }}">{{ trigger.name }}</a>
+                        </h3>
+                    </div>
+                    <div class="panel-body">
+                        <a href="{{ url_for('trigger', id=trigger.id) }}">
+                            {% from '_trigger_list_group.html' import trigger_list_group_content with context %}
+                            <div class="col-lg-4">
+                                {{ trigger_list_group_content(trigger, list_group_lists[0]) }}
+                            </div>
+                            <div class="col-lg-4">
+                                {{ trigger_list_group_content(trigger, list_group_lists[1]) }}
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="text-center">
+            {% if triggers_paginated.pages > 1 %}
+                {{ render_pagination(
+                        triggers_paginated,
+                        'triggers',
+                        args=pagination_args) }}
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+
+    {# Trigger list group script #}
+    {% from '_trigger_list_group.html' import trigger_list_group_script with context %}
+    {% for list_group_list in list_group_lists %}
+      {{ trigger_list_group_script(list_group_list) }}
+    {% endfor %}
+
+    <script type="text/javascript">
+        {% if Permission(TriggerCreateNeed(), RoleNeed('admin')).can() %}
+            function trigger_new() {
+                $.ajax({
+                    url: '{{ url_for('trigger_new') }}',
+                    type: 'POST',
+                    success: function (data) {
+                        var url = '{{ url_for('trigger', id=0, _anchor='parameters') }}';
+                        url = url.replace('0', data.id);
+                        $(window).attr('location', url);
+                    }
+                });
+            }
+        {% endif %}
+    </script>
+{% endblock %}

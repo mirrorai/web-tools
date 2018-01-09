@@ -1,0 +1,30 @@
+{
+  "name": "web-tools",
+  "authors": [
+    "Mirror <info@mirror-ai.com>"
+  ],
+  "description": "Web-nnotation tool",
+  "main": "",
+  "license": "Proprietary",
+  "homepage": "mirror-ai.com",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "bootstrap": "=3.3.7",
+    "font-awesome": "=4.6.3",
+    "moment": "momentjs#=2.14.1",
+    "eonasdan-bootstrap-datetimepicker": "=4.17.37",
+    "d3": "=3.5.17",
+    "cropper": "=2.3.2",
+    "metrics-graphics": "=2.9.0",
+    "jquery": "=2.2.4",
+    "holderjs": "=2.9.3",
+    "bootstrap-select": ">=1.12.2"
+  }
+}

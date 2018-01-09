@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% set active_page = 'marking' %} {# For menu highlight #}
+{% block title %}{{ super() }}Marking{% endblock %}
+{% block styles %}
+{{ super() }}
+<link href="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.css') }}"
+  rel="stylesheet">
+<link href="{{ url_for('static', filename='bower_components/bootstrap-select/dist/css/bootstrap-select.min.css') }}"
+  rel="stylesheet">
+<!--suppress CssUnusedSymbol -->
+<style> {# Bigger fonts for graphs #}
+  .mg-x-axis text, .mg-y-axis text, .mg-histogram .axis text, .mg-active-datapoint {
+  font-size: 1.5rem;
+  }
+</style>
+{% endblock %}
+{% block content %}
+{{ super() }}
+
+{% if is_empty %}
+  {% set disabled_if_empty = "disabled" %}
+{% else %}
+  {% set disabled_if_empty = "" %}
+{% endif %}
+
+<main role="main" class="container">
+  <div class="mt-3">
+    <h2>Current tasks</h2>
+  </div>
+  <div class="list-group">
+    {% for task in tasks %}
+      <a href="{{task['url'] if task['enabled'] else '#'}}" class="list-group-item justify-content-between {{ 'disabled' if not task['enabled'] }}">
+
+      {{ task['name'] }}
+
+      {% if task['count'] > 0 %}
+        <span class="badge badge-default badge-pill">{{ task['count'] }}</span>
+      {% endif %}
+
+      </a>
+    {% endfor %}
+  </div>
+</main>
+
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/holderjs/holder.min.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/bootstrap-select/js/bootstrap-select.js') }}"></script>
+
+<script type="text/javascript">
+
+  $(document).ready(function() {
+
+  });
+</script>
+{% endblock %}

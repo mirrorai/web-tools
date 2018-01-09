@@ -1,0 +1,29 @@
+# Editors backups
+*.swp
+*~
+
+# Python generated files
+*.pyc
+
+# Queue image folders
+cache_images
+images
+
+# Virtual env and autoenv scripts
+venv/*
+.autoenv*
+
+# Pycharm folder
+.idea
+
+# Node.js
+node_modules
+
+# Bower packages
+static/bower_components
+
+# Celery files
+celerybeat-schedule
+
+database
+*.db

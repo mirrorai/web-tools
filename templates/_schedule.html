@@ -1,0 +1,96 @@
+{% macro schedule_modal(form, action, modal_id, modal_title, modal_hash='#schedule') %}
+    {# Rendering modal #}
+    {% from '_forms.html' import render_custom_form_modal %}
+    {% set class_prefix = 'schedule' %}
+    {% set save_button_class = class_prefix + '-save' %}
+    {% set is_working_checkbox_class = class_prefix + '-is-working-checkbox' %}
+    {% set reset_callback = "
+        $form.find('.form-group').removeClass('has-feedback has-success has-error');
+        $form.find('.form-control-feedback').removeClass('glyphicon-ok glyphicon-remove');
+        $form.find('.error-block').addClass('hide');
+        $form.find('.help-block').not('.error-block').removeClass('hide');" %}
+    {% set errors_callback = reset_callback + "
+        $form.find('.form-group').addClass('has-feedback has-success');
+        $form.find('.form-control-feedback').addClass('glyphicon-ok');
+        $.each(jqXHR.responseJSON, function(field, errors) {{
+            var $formGroup = $form.find('[name=\"' + field + '\"]').parents('.form-group');
+            $formGroup.removeClass('has-success').addClass('has-error');
+            $formGroup.find('.form-control-feedback')
+                .removeClass('glyphion-ok')
+                .addClass('glyphicon-remove');
+            $formGroup.find('.error-block').removeClass('hide').html(errors.join('\\n'));
+            $formGroup.find('.help-block').not('.error-block').addClass('hide');
+        }});" %}
+    {% call render_custom_form_modal(
+            action,
+            modal_id,
+            modal_title,
+            modal_hash,
+            reset_callback=reset_callback,
+            errors_callback=errors_callback) %}
+
+        {{ form.csrf_token }}
+        <div class="modal-body">
+            <table class="table">
+                <thead>
+                <tr>
+                    <th>Day of week</th>
+                    <th class="text-center">Start time</th>
+                    <th class="text-center">End time</th>
+                    <th class="text-center">Working this day</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for day_of_week in DaysOfWeek %}
+                    <tr>
+                        <td>
+                            {{ day_of_week.name.capitalize() }}
+                        </td>
+                        {% for time_type in ['begin', 'end'] %}
+                            <td class="text-center">
+                                <div class="form-group" style="margin-bottom: 0">
+                                    {% set field = form[day_of_week.name + '_' + time_type + '_time'] %}
+                                    <div class="input-group" style="width: 100%">
+                                        {{ field(class="form-control") }}
+                                        <span class="glyphicon form-control-feedback"></span>
+                                    </div>
+                                    <p class="help-block error-block hide"></p>
+                                </div>
+                            </td>
+                        {% endfor %}
+                        <td class="text-center">
+                            {{ form[day_of_week.name + '_is_working'](class=is_working_checkbox_class) }}
+                        </td>
+                    </tr>
+                {% endfor %}
+                <tr>
+                    <td colspan="4">
+                        <div class="input-group" style="width: 100%">
+                            <span class="input-group-addon">Timezone</span>
+                            {{ form.timezone(class='form-control') }}
+                        </div>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    {% endcall %}
+
+    <script type="text/javascript">
+        $(document).ready(function () {
+            {# Disabling times for non working days #}
+            function updateDisabledState() {
+                var checkbox = $(this);
+                checkbox.parents('tr').find('[type="time"]').prop('disabled', !this.checked);
+            }
+            var $modal = $('#{{ modal_id }}');
+            var $checkboxes = $modal.find('.{{ is_working_checkbox_class }}');
+
+            $checkboxes.each(updateDisabledState);
+            $checkboxes.change(updateDisabledState);
+            $modal.on('hidden.bs.modal', function () {
+                $checkboxes.each(updateDisabledState);
+            });
+        });
+    </script>
+{% endmacro %}

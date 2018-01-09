@@ -1,0 +1,1 @@
+python manage.py db_command -f data/db_populate_users.json

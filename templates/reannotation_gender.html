@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% set active_page = 'marking' %} {# For menu highlight #}
+{% block title %}{{ super() }}Marking{% endblock %}
+{% block styles %}
+{{ super() }}
+<link href="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.css') }}"
+  rel="stylesheet">
+<link href="{{ url_for('static', filename='bower_components/bootstrap-select/dist/css/bootstrap-select.min.css') }}"
+  rel="stylesheet">
+<!--suppress CssUnusedSymbol -->
+<style> {# Bigger fonts for graphs #}
+  .mg-x-axis text, .mg-y-axis text, .mg-histogram .axis text, .mg-active-datapoint {
+  font-size: 1.5rem;
+  }
+</style>
+{% endblock %}
+{% block content %}
+{{ super() }}
+
+<main role="main" class="container">
+  {% if ctx['is_male'] %}
+    <h2>Click on woman, double-click on bad examples</h2>
+  {% else %}
+    <h2>Click on man, double-click on bad examples</h2>
+  {% endif %}
+  {% for sample in ctx['samples'] %}
+      <img src="{{ sample['image'] }}" class="img-thumbnail" width="150">
+  {% endfor %}
+</main>
+
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/holderjs/holder.min.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/bootstrap-select/js/bootstrap-select.js') }}"></script>
+
+<script type="text/javascript">
+
+  $(document).ready(function() {
+
+  });
+</script>
+{% endblock %}

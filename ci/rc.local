@@ -1,0 +1,11 @@
+#!/bin/sh -e
+#
+# rc.local
+#
+
+cd /home/local/
+. /etc/environment
+export QUEUE_CONFIG
+screen -AmdS runner sh -c "sh bundle.sh; exec bash"
+
+exit 0

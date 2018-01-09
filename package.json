@@ -1,0 +1,21 @@
+{
+  "name": "web-tools",
+  "version": "1.0.0",
+  "description": "Web-annotation tool",
+  "main": "index.js",
+  "dependencies": {
+    "bower": "^1.7.9"
+  },
+  "devDependencies": {
+    "bower": "^1.7.9"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://bitbucket.org/denemmy/web-tools.git"
+  },
+  "author": "denemmy",
+  "license": "UNLICENSED"
+}
