@@ -88,14 +88,20 @@ class GenderSample(db.Model):
     is_male = db.SDColumn(db.Boolean)
     is_hard = db.SDColumn(db.Boolean, default=False)
     is_bad = db.SDColumn(db.Boolean, default=False)
+    is_checked = db.SDColumn(db.Boolean, default=False)
 
-class GenderMarkingRecord(db.Model):
+class UserGenderAnnotation(db.Model):
+
+    __table_args__ = (
+        db.UniqueConstraint("gender_sample_id", "user_id"),
+    )
+
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
-    sample_id = db.SDColumn(
+    gender_sample_id = db.SDColumn(
         db.Integer,
         db.ForeignKey('gender_sample.id', onupdate='CASCADE', ondelete='CASCADE')
     )
-    sample = db.relationship(
+    gender_sample = db.relationship(
         GenderSample,
         uselist=False,
         cascade='all, delete-orphan',
@@ -112,5 +118,10 @@ class GenderMarkingRecord(db.Model):
         cascade='all, delete-orphan',
         single_parent=True
     )
+
+    is_male = db.SDColumn(db.Boolean)
+    is_changed = db.SDColumn(db.Boolean)
+    is_hard = db.SDColumn(db.Boolean, default=False)
+    is_bad = db.SDColumn(db.Boolean, default=False)
 
     mark_timestamp = db.SDColumn(ArrowType)

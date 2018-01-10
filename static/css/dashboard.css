@@ -220,3 +220,43 @@
             user-select: none; /* Non-prefixed version, currently
                                   not supported by any browser */
 }
+
+.sample-card {
+  display: inline-block;
+  margin-bottom: 4px;
+  height: auto;
+  width: 159px;
+  padding: 4px;
+  line-height: 1.42857143;
+  border: 1px solid #ddd;
+  -webkit-transition: all .2s ease-in-out;
+  -o-transition: all .2s ease-in-out;
+  transition: all .2s ease-in-out;
+}
+
+.sample-card .caption {
+ margin-top: 4px;
+ color: #333;
+}
+
+.sample-card-man {
+  background-color: #0392cf;
+}
+
+.sample-card-woman {
+  background-color: #fdf498;
+}
+
+.sample-card .btn {
+  padding: 5px 5px;
+}
+
+.pointer {
+  cursor: pointer;
+}
+
+.img-card {
+  display: block;
+  max-height: 100%;
+  max-width: 100%;
+}

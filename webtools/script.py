@@ -18,7 +18,7 @@ import codecs
 from os.path import join, splitext, basename, dirname, isfile, isdir
 
 from . import app
-from .reannotation.models import Image, GenderSample, GenderMarkingRecord, ImagesDatabase
+from .reannotation.models import Image, GenderSample, UserGenderAnnotation, ImagesDatabase
 
 from .utils import camelcase_to_snakecase, mkdir_p, list_subdirs, \
     list_images, check_image, validate_size, query_yes_no, get_number, find_fp_fn, \
@@ -259,6 +259,7 @@ class CleanSamples(Command):
 
         samples_count = GenderSample.query.count()
 
+        UserGenderAnnotation.delete()
         ImagesDatabase.query.delete()
         GenderSample.query.delete()
         Image.query.delete()

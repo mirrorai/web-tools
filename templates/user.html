@@ -9,10 +9,9 @@
     {{ super() }}
 
     <div class="container">
-        <h1>{{ user.first_name }} {{ user.last_name }}</h1>
-
         <div class="row">
             <div class="col-lg-4">
+                <h1>{{ user.first_name }} {{ user.last_name }}</h1>
                 <ul class="list-group">
                     <li class="list-group-item">
                         First name <span class="badge">{{ user.first_name }}</span>
@@ -38,12 +37,9 @@
                     </li>
                 </ul>
             </div>
-        </div>
-
-        {% if user.id == current_user.id %}
-            <h2>Change password</h2>
-            <div class="row">
-                <div class="col-lg-6 col-lg-offset-3">
+            {% if user.id == current_user.id %}
+                <div class="col-lg-4">
+                    <h2>Change password</h2>
                     <form action="{{ url_for('security.change_password') }}" method="POST" name="change_password_form">
                         {% import 'bootstrap/wtf.html' as wtf %}
                         {{ change_password_form.hidden_tag() }}
@@ -57,7 +53,8 @@
                                value="Change password">
                     </form>
                 </div>
-            </div>
-        {% endif %}
+            {% endif %}
+        </div>
+
     </div>
 {% endblock %}

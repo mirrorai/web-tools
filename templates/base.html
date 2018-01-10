@@ -64,7 +64,7 @@
             <div class="collapse navbar-collapse" id="navbar">
 
                 {% if config_tag %}
-                     <ul class="nav navbar-nav">
+                     <ul class="nav navbar-nav hidden-md hidden-sm hidden-xs">
                         <li>
                             <p class="navbar-text" style="color: red">
                                 {{ icon('warning-sign') }} {{ config_tag[1] }} version
@@ -75,18 +75,18 @@
 
                 <ul class="nav navbar-nav navbar-right">
                     {% if current_user.has_role('admin') %}
-                        <li>
-                            <a href="{{ url_for('admin.index') }}">
-                                {{ icon('wrench') }}
-                                Admin
-                            </a>
-                        </li>
+                        <!--<li>-->
+                            <!--<a href="{{ url_for('admin.index') }}">-->
+                                <!--{{ icon('wrench') }}-->
+                                <!--Admin-->
+                            <!--</a>-->
+                        <!--</li>-->
                     {% endif %}
                     {% if current_user.is_authenticated %}
                         <li{% if active_page == 'my_profile' %} class="active"{% endif %}>
                             <a href="{{ url_for('user_my_profile') }}">
                                 {{ icon('user') }}
-                                Signed in as <strong>{{ current_user.first_name }} {{ current_user.last_name }}</strong>
+                                Signed in as <strong>{{ current_user.first_name }}</strong>
                             </a>
                         </li>
                         <li>

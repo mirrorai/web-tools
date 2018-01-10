@@ -22,7 +22,7 @@ class MoreThan(object):
 
 
 # Inspired by https://www.snip2code.com/Snippet/719933/JSON-field-for-WTForms-that-converts-bet
-class JsonField(fields.StringField):
+class JsonField(fields.HiddenField):
     error_msg = 'This field contains invalid JSON'
 
     def _value(self):

@@ -1,11 +1,13 @@
 {% extends 'base.html' %}
-{% set active_page = 'marking' %} {# For menu highlight #}
-{% block title %}{{ super() }}Marking{% endblock %}
+{% set active_page = 'reannotation' %} {# For menu highlight #}
+{% block title %}{{ super() }}Reannotation{% endblock %}
 {% block styles %}
 {{ super() }}
 <link href="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.css') }}"
   rel="stylesheet">
 <link href="{{ url_for('static', filename='bower_components/bootstrap-select/dist/css/bootstrap-select.min.css') }}"
+  rel="stylesheet">
+<link href="{{ url_for('static', filename='css/dashboard.css') }}?q={{ ctx['ts'] }}"
   rel="stylesheet">
 <!--suppress CssUnusedSymbol -->
 <style> {# Bigger fonts for graphs #}
@@ -18,14 +20,46 @@
 {{ super() }}
 
 <main role="main" class="container">
-  {% if ctx['is_male'] %}
-    <h2>Click on woman, double-click on bad examples</h2>
+  {% if ctx['is_empty'] %}
+    <div class="starter-template" style="padding: 0px 15px; text-align: center;">
+      <h1>No images to annotate.</h1>
+      <p class="lead">
+        Statistics: {{ctx['stats']['user_checked']}} images checked, {{ctx['stats']['user_reannotated']}} images reannotated.
+        <br> <a href="/reannotation">Go back</a> to select task.
+      </p>
+    </div>
   {% else %}
-    <h2>Click on man, double-click on bad examples</h2>
+    <h2 style="margin-top: 0px;">Find all images with
+      <span class="text-info">
+      {{'woman' if ctx['is_male'] else 'man'}}
+      </span>
+      <small>
+        <span class="pointer glyphicon glyphicon-question-sign"></span>
+      </small>
+      <small><span style="margin-left: 10px;">Progress: [{{ctx['stats']['total_checked']}}/{{ctx['stats']['total']}}]</span></small>
+      <form id='form_send' method="post" action="/update_gender_data" style="display: inline-block;">
+        {{ form.csrf_token }}
+        {{ form.is_male() }}
+        {{ form.gender_data() }}
+        <button type="button" style="margin-left: 10px; min-width: 100px;" class="btn btn-success">Next</button>
+      </form>
+    </h2>
+    {% for sample in ctx['samples'] %}
+        <div class="sample-card {{'bg-info' if ctx['is_male'] else 'bg-warning'}}"
+          data-sample-id="{{sample['id']}}">
+          <img src="{{ sample['image'] }}" role="button" class="img-card">
+          <div class="caption">
+            <div class="btn-group" role="group">
+              <button type="button" style="width: 63px;" class="btn btn-default btn-gender">{{'woman' if ctx['is_male'] else 'man'}}</button>
+              <button type="button" style="width: 49px;" class="btn btn-default btn-gender-hard">hard</button>
+              <button type="button" style="width: 39px;" class="btn btn-default btn-gender-bad">bad</button>
+            </div>
+          </div>
+          <div class="gender-data-container" data-sample-id="{{sample['id']}}"></div>
+        </div>
+    {% endfor %}
+    <div class="footer" style="height: 40px;"></div>
   {% endif %}
-  {% for sample in ctx['samples'] %}
-      <img src="{{ sample['image'] }}" class="img-thumbnail" width="150">
-  {% endfor %}
 </main>
 
 {% endblock %}
@@ -38,10 +72,14 @@
 <script type="text/javascript"
   src="{{ url_for('static', filename='bower_components/bootstrap-select/js/bootstrap-select.js') }}"></script>
 
+<script type="text/javascript"
+  src="{{ url_for('static', filename='js/gender-manager.js') }}?q={{ctx['ts']}}"></script>
+
 <script type="text/javascript">
 
   $(document).ready(function() {
-
+    var global_is_male = {{ '1' if ctx['is_male'] else '0' }};
+    GenderManager.init(global_is_male);
   });
 </script>
 {% endblock %}
