@@ -21,7 +21,7 @@
               "middle_name": "Admin",
               "last_name": "Admin",
               "email": "admin@mirror-ai.com",
-              "password": "realpassword",
+              "password": "mirroraidev",
               "roles": [
                 "admin"
               ],
