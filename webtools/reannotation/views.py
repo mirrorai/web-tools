@@ -42,26 +42,29 @@ def define_template_globals():
         is_reannotation=1
     )
 
-def get_tasks(base_url):
+def get_gender_task_data():
+    gender_stats = get_gender_stats()
+    gender_task_data = {'id': 'gender', 'name': 'Gender', 'stats': gender_stats, 'enabled': True}
+    return gender_task_data
+
+def get_tasks():
     tasks = []
 
     gender_count = GenderSample.query.filter(GenderSample.is_checked == False).count()
-
-    tasks.append({'url': '', 'id': 'gender', 'name': 'gender', 'count': gender_count, 'enabled': True})
-    tasks.append({'url': '', 'id': 'hair_color', 'name': 'hair color', 'count': 0, 'enabled': False})
-    tasks.append({'url': '', 'id': 'eyes_color', 'name': 'eyes color', 'count': 0, 'enabled': False})
-    tasks.append({'url': '', 'id': 'race', 'name': 'race', 'count': 0, 'enabled': False})
-
-    for task in tasks:
-        task['url'] = furl(base_url).add(query_params=dict(task=task['id'])).url
+    tasks.append(get_gender_task_data())
+    tasks.append({'id': 'hair_color', 'name': 'Hair color', 'stats': None, 'enabled': False})
+    tasks.append({'id': 'eyes_color', 'name': 'Eyes color', 'stats': None, 'enabled': False})
+    tasks.append({'id': 'race', 'name': 'Race', 'stats': None, 'enabled': False})
 
     return tasks
 
 def get_gender_stats():
 
     total = GenderSample.query.count()
+
     total_checked = GenderSample.query.filter_by(is_checked=True).count()
     user_checked = UserGenderAnnotation.query.filter_by(user_id=current_user.id).count()
+
     total_reannotated = UserGenderAnnotation.query.filter(or_(UserGenderAnnotation.is_changed==True,
                                                               UserGenderAnnotation.is_bad==True,
                                                               UserGenderAnnotation.is_hard==True)).count()
@@ -116,7 +119,7 @@ def gender_task(request):
 @nocache
 def reannotation():
     task = request.args.get('task', None)
-    tasks = get_tasks(request.base_url)
+    tasks = get_tasks()
     if not task or task not in [t['id'] for t in tasks]:
         return render_template('reannotation.html', tasks=tasks)
     else:

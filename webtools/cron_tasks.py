@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from . import app
-from .money_account.models import  CameraFrequencyPlan
 from .script import CleanWasteImages, CleanCache
 
 

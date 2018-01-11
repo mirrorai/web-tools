@@ -24,20 +24,54 @@
 {% endif %}
 
 <main role="main" class="container">
-  <div class="mt-3">
-    <h2>Current tasks</h2>
-  </div>
-  <div class="list-group">
+  <!--<h2 style="margin-top: 0px;">Current tasks</h2>-->
+  <div class="list-group" style="margin-top: 0px;">
     {% for task in tasks %}
-      <a href="{{task['url'] if task['enabled'] else '#'}}" class="list-group-item justify-content-between {{ 'disabled' if not task['enabled'] }}">
 
-      {{ task['name'] }}
+      <div class="list-group-item justify-content-between {{ 'disabled' if not task['enabled'] }}"
+           style="padding: 0px;">
 
-      {% if task['count'] > 0 %}
-        <span class="badge badge-default badge-pill">{{ task['count'] }}</span>
-      {% endif %}
+        <h3 class="list-group-item-heading" style="margin: 15px;">
+          {{ task['name'] }}
+        </h3>
 
-      </a>
+        <div class="list-group">
+        {% if task['stats'] is not none %}
+
+          <a href="{{'/reannotation?task=' + task['id'] if task['enabled'] else '#'}}"
+             class="list-group-item annotation-subsection-item">
+
+            <h4 class="list-group-item-heading lead">Annotation</h4>
+            <p class="lead list-group-item-text">
+              total samples: <span class="label label-info">{{ task['stats']['total'] }}</span>
+              , to check: <span class="label label-info">{{ task['stats']['to_check'] }}</span>
+              , checked: <span class="label label-success">{{ task['stats']['total_checked'] }}</span>
+              , reannotated: <span class="label label-success">{{ task['stats']['total_reannotated'] }}</span>
+            </p>
+          </a>
+
+          <a href="#" class="list-group-item annotation-subsection-item">
+            <h4 class="list-group-item-heading lead">Metrics</h4>
+            <p class="lead list-group-item-text">
+              accuracy: <span class="label label-info">0.99992112</span>
+              , accuracy grouth: <span class="label label-success">1.2%</span>
+              , auc: <span class="label label-info">0.991212212</span>
+            </p>
+          </a>
+
+          <div class="list-group-item annotation-subsection-item">
+            <h4 class="list-group-item-heading lead">Manage</h4>
+            <p class="lead list-group-item-text" style="margin-top: 15px;">
+              <button type="button" style="min-width: 100px;" class="btn btn-success">Train</button>
+              <button type="button" style="min-width: 100px;" class="btn btn-success disabled">Deploy</button>
+            </p>
+          </div>
+
+        {% endif %}
+        </div>
+
+
+      </div>
     {% endfor %}
   </div>
 </main>

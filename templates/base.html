@@ -15,6 +15,7 @@
 
     {# Common CSS modifiers #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-callout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap-modify.css') }}">
     <!--suppress CssUnusedSymbol -->
     <style>
         .modal-trigger {
@@ -49,7 +50,7 @@
 {% block navbar %}
     {% set active_page = active_page|default('__not-recognized__') %}
 
-    <nav class="navbar navbar-default">
+    <nav class="navbar navbar-default" style="background-color: #fff;">
         <div class="container">
             <div class="navbar-header">
                 <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar">

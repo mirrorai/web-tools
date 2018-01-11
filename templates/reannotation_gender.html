@@ -34,9 +34,10 @@
       {{'woman' if ctx['is_male'] else 'man'}}
       </span>
       <small>
-        <span class="pointer glyphicon glyphicon-question-sign"></span>
+        <!--<button type="button" class="btn btn-info btn-lg" data-toggle="modal" data-target="#myModal">Open Modal</button>-->
+        <span class="pointer glyphicon glyphicon-question-sign" data-toggle="modal" data-target="#instructions-modal"></span>
       </small>
-      <small><span style="margin-left: 10px;">Progress: [{{ctx['stats']['total_checked']}}/{{ctx['stats']['total']}}]</span></small>
+      <!--<small><span style="margin-left: 10px;">Progress: {{ctx['stats']['total_checked']}}/{{ctx['stats']['total']}}</span></small>-->
       <form id='form_send' method="post" action="/update_gender_data" style="display: inline-block;">
         {{ form.csrf_token }}
         {{ form.is_male() }}
@@ -61,6 +62,27 @@
     <div class="footer" style="height: 40px;"></div>
   {% endif %}
 </main>
+
+<!-- Modal -->
+<div id="instructions-modal" class="modal fade" role="dialog">
+  <div class="modal-dialog">
+
+    <!-- Modal content-->
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Annotation instructions</h4>
+      </div>
+      <div class="modal-body">
+        <p>Some annotation instructions.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 {% endblock %}
 {% block scripts %}
