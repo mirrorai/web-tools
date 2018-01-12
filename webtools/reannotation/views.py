@@ -219,6 +219,11 @@ def update_gender_data():
         # flash('Data successfully updated: added: {}, updated: {}, deleted: {}'.format(added, updated, deleted))
     return redirect(url_for('reannotation') + '?task=gender')
 
+@app.route('/lenadrobik')
+@nocache
+def lenadrobik():
+    return render_template('base_temp.html')
+
 @app.route('/image/<int:id>', defaults={'minside': 0, 'maxside': 0}, methods=['GET'])
 @app.route('/image/<int:id>/<int:minside>', defaults={'maxside': 0}, methods=['GET'])
 @app.route('/image/<int:id>/<int:minside>/<int:maxside>', methods=['GET'])

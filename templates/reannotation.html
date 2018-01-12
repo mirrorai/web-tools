@@ -17,12 +17,6 @@
 {% block content %}
 {{ super() }}
 
-{% if is_empty %}
-  {% set disabled_if_empty = "disabled" %}
-{% else %}
-  {% set disabled_if_empty = "" %}
-{% endif %}
-
 <main role="main" class="container">
   <!--<h2 style="margin-top: 0px;">Current tasks</h2>-->
   <div class="list-group" style="margin-top: 0px;">
