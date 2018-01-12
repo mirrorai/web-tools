@@ -27,3 +27,6 @@ celerybeat-schedule
 
 database
 *.db
+
+bin/init_env.sh
+
