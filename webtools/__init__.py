@@ -101,7 +101,7 @@ class ProtectedModelView(ModelView):
 from celery import Celery
 
 def make_celery(application):
-    cel = Celery(application.import_name)
+    cel = Celery(application.import_name, broker=app.config['CELERY_BROKER_URL'])
     cel.conf.update(application.config)
     task_base = cel.Task
 
@@ -129,4 +129,5 @@ from .reannotation import views
 from .history import views
 
 # Celery tasks
-# import cron_tasks
+import cron_tasks
+from .reannotation import celery_tasks

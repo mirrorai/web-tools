@@ -88,3 +88,6 @@ npm install -g bower
 ln -s /usr/bin/nodejs /usr/bin/node # fix in ubuntu
 bower install
 bower install --allow-root # fix in ubuntu
+
+# celery
+celery -A webtools.celery worker -B --concurrency 1 --loglevel=info

@@ -14,12 +14,10 @@ import time
 
 import arrow
 import os
-from datetime import timedelta
 from flask import abort, flash, jsonify, render_template, request, send_file, url_for, redirect
 from flask_login import current_user, login_required
 from flask_principal import Permission, RoleNeed
 from flask_security import auth_token_required
-from markupsafe import Markup
 from sqlalchemy import func, or_, and_, desc, not_
 from sqlalchemy.orm import joinedload
 
@@ -30,8 +28,10 @@ from webtools.utils import apply_min_max_detections_filters, apply_timing_filter
     parse_min_max_detections_parameters, parse_timing_parameters, preprocess_paged_query, zipdir
 from webtools.wrappers import nocache
 
-from .models import Image, GenderSample, UserGenderAnnotation
+from .models import Image, GenderSample, GenderUserIterAnnotation, GenderIteration
 from .forms import GenderDataForm
+from celery_tasks import run_train, long_task, train_on_error, train_on_success
+import celery
 
 # Shortcuts
 db = app.db
@@ -44,7 +44,7 @@ def define_template_globals():
 
 def get_gender_task_data():
     gender_stats = get_gender_stats()
-    gender_task_data = {'id': 'gender', 'name': 'Gender', 'stats': gender_stats, 'enabled': True}
+    gender_task_data = {'name_id': 'gender', 'name': 'Gender', 'stats': gender_stats, 'enabled': True}
     return gender_task_data
 
 def get_tasks():
@@ -63,15 +63,18 @@ def get_gender_stats():
     total = GenderSample.query.count()
 
     total_checked = GenderSample.query.filter_by(is_checked=True).count()
-    user_checked = UserGenderAnnotation.query.filter_by(user_id=current_user.id).count()
+    user_checked = GenderUserIterAnnotation.query.filter_by(user_id=current_user.id).count()
 
-    total_reannotated = UserGenderAnnotation.query.filter(or_(UserGenderAnnotation.is_changed==True,
-                                                              UserGenderAnnotation.is_bad==True,
-                                                              UserGenderAnnotation.is_hard==True)).count()
-    user_reannotated = UserGenderAnnotation.query.filter(and_(UserGenderAnnotation.user_id==current_user.id,
-                                                               or_(UserGenderAnnotation.is_changed==True,
-                                                                   UserGenderAnnotation.is_bad==True,
-                                                                   UserGenderAnnotation.is_hard==True))).count()
+    # total_reannotated = GenderUserIterAnnotation.query.filter(or_(GenderUserIterAnnotation.is_changed==True,
+    #                                                               GenderUserIterAnnotation.is_bad==True,
+    #                                                               GenderUserIterAnnotation.is_hard==True)).count()
+    # user_reannotated = GenderUserIterAnnotation.query.filter(and_(GenderUserIterAnnotation.user_id==current_user.id,
+    #                                                            or_(GenderUserIterAnnotation.is_changed==True,
+    #                                                                GenderUserIterAnnotation.is_bad==True,
+    #                                                                GenderUserIterAnnotation.is_hard==True))).count()
+    total_reannotated = 0
+    user_reannotated = 0
+
     stats = {}
     stats['total'] = total
     stats['to_check'] = total - total_checked
@@ -81,7 +84,6 @@ def get_gender_stats():
     stats['user_reannotated'] = total_reannotated
 
     return stats
-
 
 def get_random_gender_samples(base_url):
 
@@ -114,14 +116,36 @@ def gender_task(request):
     ctx = {'stats': stats, 'is_empty': len(samples) == 0, 'samples': samples, 'is_male': is_male, 'ts': int(time.time())}
     return render_template('reannotation_gender.html', ctx=ctx, form=form)
 
+def get_current_iteration(create_if_not_exist=False):
+    iterations = GenderIteration.query.order_by(desc(GenderIteration.id))
+    if iterations.count() == 0:
+        if create_if_not_exist:
+            # create iteration
+            iteration = create_next_iteration()
+        else:
+            return None
+    else:
+        iteration = iterations.first()
+
+    return iteration
+
+def create_next_iteration(is_training=False):
+    # create iteration
+    iteration = GenderIteration(is_training=is_training)
+    app.db.session.add(iteration)
+    app.db.session.flush()
+    app.db.session.commit()
+    return iteration
+
 @app.route('/reannotation', methods=['GET', 'POST'])
 @login_required
 @nocache
 def reannotation():
     task = request.args.get('task', None)
     tasks = get_tasks()
+    ctx = {'ts': int(time.time())}
     if not task or task not in [t['id'] for t in tasks]:
-        return render_template('reannotation.html', tasks=tasks)
+        return render_template('reannotation.html', tasks=tasks, ctx=ctx)
     else:
         if task == 'gender':
             return gender_task(request)
@@ -147,7 +171,7 @@ def validate_gender_input_data(is_male, gender_data):
         args = {}
         args['is_male'] = (is_male and (data_item['is_changed'] == 0))
         args['is_male'] = args['is_male'] or ((not is_male) and (data_item['is_changed'] != 0))
-        args['is_changed'] = data_item['is_changed'] != 0
+        # args['is_changed'] = data_item['is_changed'] != 0
 
         if 'is_hard' in data_item and check_is_int(data_item['is_hard']):
             args['is_hard'] = data_item['is_hard'] != 0
@@ -157,7 +181,6 @@ def validate_gender_input_data(is_male, gender_data):
         out_data[sample_id_int] = args
 
     return out_data
-
 
 @app.route('/update_gender_data', methods=['POST'])
 @login_required
@@ -179,10 +202,16 @@ def update_gender_data():
         if gender_data is None:
             break
 
-        # delete previous annotation for this user and samples
+        iteration = get_current_iteration(create_if_not_exist=True)
+        if iteration is None:
+            break
+
+        # delete previous annotation for this user, iteration and samples
         list_of_ids = [sample_id for sample_id in gender_data]
-        deleted = UserGenderAnnotation.query.filter(and_(UserGenderAnnotation.gender_sample_id.in_(list_of_ids),
-                                                         UserGenderAnnotation.user_id==user_id)).delete(synchronize_session='fetch')
+        deleted = GenderUserIterAnnotation.query.\
+            filter(and_(GenderUserIterAnnotation.sample_id.in_(list_of_ids),
+                        GenderUserIterAnnotation.iteration_id==iteration.id,
+                        GenderUserIterAnnotation.user_id==user_id)).delete(synchronize_session='fetch')
 
         # check that all samples ids is valid
         gender_samples = GenderSample.query.filter(GenderSample.id.in_(list_of_ids))
@@ -194,10 +223,11 @@ def update_gender_data():
         for sample_id in gender_data:
             args = gender_data[sample_id]
             args['user_id']=user_id
-            args['gender_sample_id']=sample_id
+            args['sample_id']=sample_id
             args['mark_timestamp']=utc
+            args['iteration_id']=iteration.id
             # create instance
-            user_gender_ann = UserGenderAnnotation(**args)
+            user_gender_ann = GenderUserIterAnnotation(**args)
 
             # add to db
             app.db.session.add(user_gender_ann)
@@ -212,7 +242,7 @@ def update_gender_data():
 
     if failed:
         pass
-        # flash('Wrong data.')
+        flash('Failed to process.')
     else:
         updated = deleted
         added = accepted - deleted
@@ -224,15 +254,84 @@ def update_gender_data():
 def lenadrobik():
     return render_template('base_temp.html')
 
+@app.route('/trigger_train', methods=['GET', 'POST'])
+@login_required
+@nocache
+def trigger_train():
+    data = request.data
+    try:
+        recv_json = json.loads(data)
+    except ValueError:
+        return jsonify(status='error', message='wrong post parameters'), 400
+
+    # check parameters
+    try:
+        task = recv_json['task']
+    except KeyError:
+        return jsonify(status='error', message='wrong post parameters'), 400
+
+    if task == 'gender':
+        status_url, stop_url, task_id = trigger_train_gender()
+    else:
+        return jsonify(status='error', message='wrong post parameters'), 400
+
+    return jsonify(status='ok', stop_url=stop_url,
+                   status_url=status_url, task_id=task_id, message='training started.'), 202
+
+def trigger_train_gender():
+    task = run_train.apply_async(('gender',), link_error=train_on_error.s(), link=train_on_success.s())
+    return url_for('taskstatus', task_id=task.id), url_for('stop_train', task_id=task.id), task.id
+
 @app.route('/image/<int:id>', defaults={'minside': 0, 'maxside': 0}, methods=['GET'])
 @app.route('/image/<int:id>/<int:minside>', defaults={'maxside': 0}, methods=['GET'])
 @app.route('/image/<int:id>/<int:minside>/<int:maxside>', methods=['GET'])
 @nocache
 @login_required
 def image(id, minside, maxside):
-    # noinspection PyShadowingNames
     image = Image.query.get_or_404(id)
-    # Permission(RoleNeed('admin')).test(403)
-
     return image.send_image(minside=minside, maxside=maxside)
+
+@app.route('/train_status/<task_id>')
+def taskstatus(task_id):
+    task = run_train.AsyncResult(task_id)
+    print(task.state)
+    if task.state == 'PENDING':
+        # job did not start yet
+        response = {
+            'state': task.state,
+            'current': 0,
+            'total': 1,
+            'status': 'Pending...'
+        }
+    elif task.state == 'REVOKED':
+        # job did not start yet
+        response = {
+            'state': task.state,
+            'current': 1,
+            'total': 1,
+            'status': 'Stopped.'
+        }
+    elif task.state != 'FAILURE':
+        response = {
+            'state': task.state,
+            'current': task.info.get('current', 0),
+            'total': task.info.get('total', 1),
+            'status': task.info.get('status', '')
+        }
+        if 'result' in task.info:
+            response['result'] = task.info['result']
+    else:
+        # something went wrong in the background job
+        response = {
+            'state': task.state,
+            'current': 1,
+            'total': 1,
+            'status': str(task.info),  # this is the exception raised
+        }
+    return jsonify(response)
+
+@app.route('/stop_train/<task_id>', methods=['GET', 'POST'])
+def stop_train(task_id):
+    celery.task.control.revoke(task_id, terminate=True)
+    return jsonify({'status': 'ok', 'stopped': True}), 202
 

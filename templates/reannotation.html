@@ -1,11 +1,13 @@
 {% extends 'base.html' %}
-{% set active_page = 'marking' %} {# For menu highlight #}
+{% set active_page = 'reannotation' %} {# For menu highlight #}
 {% block title %}{{ super() }}Marking{% endblock %}
 {% block styles %}
 {{ super() }}
 <link href="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.css') }}"
   rel="stylesheet">
 <link href="{{ url_for('static', filename='bower_components/bootstrap-select/dist/css/bootstrap-select.min.css') }}"
+  rel="stylesheet">
+<link href="{{ url_for('static', filename='css/reannotation.css') }}?q={{ctx['ts']}}"
   rel="stylesheet">
 <!--suppress CssUnusedSymbol -->
 <style> {# Bigger fonts for graphs #}
@@ -30,9 +32,9 @@
         </h3>
 
         <div class="list-group">
-        {% if task['stats'] is not none %}
+        {% if task['enabled'] and task['stats'] is not none %}
 
-          <a href="{{'/reannotation?task=' + task['id'] if task['enabled'] else '#'}}"
+          <a href="{{'/reannotation?task=' + task['name_id'] if task['enabled'] else '#'}}"
              class="list-group-item annotation-subsection-item">
 
             <h4 class="list-group-item-heading lead">Annotation</h4>
@@ -56,7 +58,13 @@
           <div class="list-group-item annotation-subsection-item">
             <h4 class="list-group-item-heading lead">Manage</h4>
             <p class="lead list-group-item-text" style="margin-top: 15px;">
-              <button type="button" style="min-width: 100px;" class="btn btn-success">Train</button>
+              <button type="button" style="min-width: 100px;"
+                      class="btn-train btn btn-success"
+                      data-task-name="{{task['name_id']}}">
+                Train
+              </button>
+              <button type="button" style="min-width: 100px;" class="btn btn-success disabled">Test</button>
+              <button type="button" style="min-width: 100px;" class="btn btn-success disabled">Find errors</button>
               <button type="button" style="min-width: 100px;" class="btn btn-success disabled">Deploy</button>
             </p>
           </div>
@@ -80,10 +88,15 @@
 <script type="text/javascript"
   src="{{ url_for('static', filename='bower_components/bootstrap-select/js/bootstrap-select.js') }}"></script>
 
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/nanobar/nanobar.min.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='js/reannotation-manager.js') }}?q={{ctx['ts']}}"></script>
+
 <script type="text/javascript">
-
   $(document).ready(function() {
-
+    ReannotationManager.init();
   });
 </script>
 {% endblock %}

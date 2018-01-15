@@ -32,6 +32,7 @@ class Config(object):
     IMAGE_FOLDER = '__NOT_SET__'
     IMAGE_CACHE_FOLDER = '__NOT_SET__'  # for resized frames
     TEMP_FOLDER = '__NOT_SET__'
+    TRAINROOM_FOLDER = 'trainroom'
 
     # Mail sending
     MAIL_NO_REPLY_SENDER = '{} < no-reply-{}@mirror-ai.com >'.format(SITE_NAME, SITE_NAME.lower())
@@ -58,15 +59,24 @@ class Config(object):
     SECURITY_TOKEN_AUTHENTICATION_KEY = 'token'
 
     # Celery
-    CELERY_BROKER_URL = 'amqp://localhost'
-    CELERY_RESULT_BACKEND = 'amqp://localhost'
-    CELERY_BACKEND_URL = 'amqp://localhost'
+    RABBITMQ_NAME = os.environ.get('RABBITMQ_NAME')
+    RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS')
+    RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST')
+
+    # CELERY_BROKER_URL = 'amqp://{}:{}@localhost/{}'.format(RABBITMQ_NAME, RABBITMQ_PASS, RABBITMQ_VHOST)
+    # CELERY_RESULT_BACKEND = 'amqp://{}:{}@localhost/{}'.format(RABBITMQ_NAME, RABBITMQ_PASS, RABBITMQ_VHOST)
+
+    CELERY_BROKER_URL = 'amqp://localhost/'
+    # CELERY_BACKEND_URL = 'amqp://localhost/'
+    CELERY_RESULT_BACKEND = 'amqp://localhost/'
+    CELERY_TASK_PROTOCOL = 1
+
     CELERY_TIMEZONE = 'UTC'
 
     CELERYBEAT_SCHEDULE = {
-        'clean_images_every_5_minutes': {
-            'task': 'webtools.cron_tasks.clean_images',
-            'schedule': timedelta(seconds=10)
+        'print_echo_every_10_minutes': {
+            'task': 'webtools.cron_tasks.print_echo',
+            'schedule': timedelta(minutes=10)
         }
     }
 
@@ -95,7 +105,7 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'sqlite:////home/ubuntu/projects/web-tools/database/webtools.db'
 
 class DevelopmentLocalConfig(Config):
-    CONFIG_TAG = ('[D]', 'Development')
+    CONFIG_TAG = ('[D]', 'DevelopmentLocal')
 
     # Current environment
     DEVELOPMENT = True

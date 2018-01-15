@@ -7,5 +7,7 @@ from .script import CleanWasteImages, CleanCache
 @app.celery.task()
 def clean_images():
     print('clean images')
-    pass
-    # CleanWasteImages().run()
+
+@app.celery.task()
+def print_echo():
+    print('echo from celery!')

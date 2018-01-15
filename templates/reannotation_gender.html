@@ -7,7 +7,7 @@
   rel="stylesheet">
 <link href="{{ url_for('static', filename='bower_components/bootstrap-select/dist/css/bootstrap-select.min.css') }}"
   rel="stylesheet">
-<link href="{{ url_for('static', filename='css/dashboard.css') }}?q={{ ctx['ts'] }}"
+<link href="{{ url_for('static', filename='css/reannotation_gender.css') }}?q={{ ctx['ts'] }}"
   rel="stylesheet">
 <!--suppress CssUnusedSymbol -->
 <style> {# Bigger fonts for graphs #}
@@ -98,7 +98,6 @@
   src="{{ url_for('static', filename='js/gender-manager.js') }}?q={{ctx['ts']}}"></script>
 
 <script type="text/javascript">
-
   $(document).ready(function() {
     var global_is_male = {{ '1' if ctx['is_male'] else '0' }};
     GenderManager.init(global_is_male);

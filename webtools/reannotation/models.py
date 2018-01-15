@@ -72,6 +72,12 @@ class Image(db.Model):
     def filename(self):
         return self.imdb.path + '/' + self.imname
 
+# first iteration is created when user tries to annotate in the first time
+# subsequently next iteration is created when training process is started
+class GenderIteration(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+    is_training = db.SDColumn(db.Boolean, default=False)
+
 class GenderSample(db.Model):
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
 
@@ -85,23 +91,48 @@ class GenderSample(db.Model):
         cascade='all, delete-orphan',
         single_parent=True
     )
-    is_male = db.SDColumn(db.Boolean)
+
+    # ground truth annotation
+    is_annotated_gt = db.SDColumn(db.Boolean, default=False)
+    is_male = db.SDColumn(db.Boolean, default=False)
     is_hard = db.SDColumn(db.Boolean, default=False)
     is_bad = db.SDColumn(db.Boolean, default=False)
+
+    # is send for annotation, is checked already
+    send_timestamp = db.SDColumn(ArrowType, nullable=True)
     is_checked = db.SDColumn(db.Boolean, default=False)
 
-class UserGenderAnnotation(db.Model):
+    # cv partition
+    partition_id = db.SDColumn(
+        db.Integer,
+        db.ForeignKey('gender_cross_valid_partition.id', onupdate='CASCADE', ondelete='CASCADE'),
+        nullable=True
+    )
+    k_fold = db.SDColumn(db.Integer, nullable=True) # 0,1,2...K
+    always_test = db.SDColumn(db.Integer, default=False) # always keep sample for testing
+
+class GenderCrossValidPartition(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+    k_folds = db.SDColumn(db.Integer) # number of folds
+
+class GenderModel(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+    snapshot_prefix = db.SDColumn(db.String(512))
+    epoch = db.SDColumn(db.Integer, nullable=True)
+    k_fold = db.SDColumn(db.Integer, nullable=True)
+
+class GenderUserIterAnnotation(db.Model):
 
     __table_args__ = (
-        db.UniqueConstraint("gender_sample_id", "user_id"),
+        db.UniqueConstraint('sample_id', 'user_id', 'iteration_id'),
     )
 
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
-    gender_sample_id = db.SDColumn(
+    sample_id = db.SDColumn(
         db.Integer,
         db.ForeignKey('gender_sample.id', onupdate='CASCADE', ondelete='CASCADE')
     )
-    gender_sample = db.relationship(
+    sample = db.relationship(
         GenderSample,
         uselist=False,
         cascade='all, delete-orphan',
@@ -119,8 +150,13 @@ class UserGenderAnnotation(db.Model):
         single_parent=True
     )
 
+    iteration_id = db.SDColumn(
+        db.Integer,
+        db.ForeignKey('gender_iteration.id', onupdate='CASCADE', ondelete='CASCADE')
+    )
+
+    # annotation data
     is_male = db.SDColumn(db.Boolean)
-    is_changed = db.SDColumn(db.Boolean)
     is_hard = db.SDColumn(db.Boolean, default=False)
     is_bad = db.SDColumn(db.Boolean, default=False)
 

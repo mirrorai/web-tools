@@ -18,7 +18,7 @@ import codecs
 from os.path import join, splitext, basename, dirname, isfile, isdir
 
 from . import app
-from .reannotation.models import Image, GenderSample, UserGenderAnnotation, ImagesDatabase
+from .reannotation.models import Image, GenderSample, GenderUserIterAnnotation, ImagesDatabase
 
 from .utils import camelcase_to_snakecase, mkdir_p, list_subdirs, \
     list_images, check_image, validate_size, query_yes_no, get_number, find_fp_fn, \
@@ -51,7 +51,7 @@ class AddImageDB(Command):
     """Adds images to DB"""
     option_list = (
         Option(
-            '--input_file', '-i',
+            '--input-file', '-i',
             dest='input_file',
             help='Path to file with samples.'
         ),
@@ -64,6 +64,12 @@ class AddImageDB(Command):
             '--type', '-t',
             dest='db_type',
             help='Database type (\'gender\').'
+        ),
+        Option(
+            '--test-only',
+            dest='test_only',
+            help='Images as test.',
+            default=0
         )
     )
 
@@ -83,7 +89,7 @@ class AddImageDB(Command):
 
         return samples
 
-    def run(self, input_file, db_name, db_type):
+    def run(self, input_file, db_name, db_type, test_only=0):
 
         assert(db_type in ['gender'])
 
@@ -113,7 +119,6 @@ class AddImageDB(Command):
 
             accepted_samples.append((local_path, is_male, img.shape))
 
-
         print('total images accepted: {}'.format(len(accepted_samples)))
         print('total images skipped: {}'.format(skipped))
 
@@ -133,7 +138,7 @@ class AddImageDB(Command):
             app.db.session.flush()
 
             # create sample
-            sample = GenderSample(image_id=image.id, is_male=is_male)
+            sample = GenderSample(image_id=image.id, is_male=is_male, is_annotated_gt=True, always_test=test_only)
             # add to db
             app.db.session.add(sample)
             app.db.session.flush()
@@ -259,7 +264,7 @@ class CleanSamples(Command):
 
         samples_count = GenderSample.query.count()
 
-        UserGenderAnnotation.delete()
+        GenderUserIterAnnotation.delete()
         ImagesDatabase.query.delete()
         GenderSample.query.delete()
         Image.query.delete()

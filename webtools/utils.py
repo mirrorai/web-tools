@@ -25,6 +25,15 @@ import reannotation.models
 from sqlalchemy import or_, and_
 from operator import itemgetter, attrgetter
 
+class add_path():
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        sys.path.insert(0, self.path)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        sys.path.remove(self.path)
 
 class IllegalApiUsage(Exception):
     pass
