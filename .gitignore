@@ -29,4 +29,8 @@ database
 *.db
 
 bin/init_env.sh
-
+*.params
+trainroom/**/*.png
+trainroom/**/visualization
+trainroom/**/snapshots
+trainroom/**/output
