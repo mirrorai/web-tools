@@ -1,18 +1,17 @@
 from loaders import load_images_from_csv, load_images_from_dir
-from os.path import join
+from os.path import join, isfile
+from image_sample import SampleWithCache
 
 class ImagesCollection(object):
 
-    def __init__(self, params, cfg):
+    def __init__(self, samples, cfg):
 
-        assert params['TYPE'] in ['CSV_FILE', 'MS_COCO', 'IMAGES_DIR']
-
-        self._params = params
-        if self._params['TYPE'] == 'CSV_FILE':
-            csv_path = join(self._params['DB_PATH'], self._params['CSV_FILE'])
-            self._samples = load_images_from_csv(csv_path, cfg)
-        elif self._params['TYPE'] == 'IMAGES_DIR':
-            self._samples = load_images_from_dir(self._params['DB_PATH'], cfg)
+        self._samples = []
+        for img_path, label in samples:
+            if not isfile(img_path):
+                continue
+            image_sample = SampleWithCache(img_path, label, cfg)
+            self._samples.append(image_sample)
 
     def __len__(self):
         return len(self._samples)

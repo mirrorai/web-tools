@@ -6,7 +6,7 @@ from os.path import join, isdir, basename, dirname
 from images_collection import ImagesCollection
 import argparse
 import cv2
-from config import cfg, cfg_from_file
+from train_config import cfg, cfg_from_file
 from iterators import ClsIter
 import color_utils
 from sklearn.metrics import confusion_matrix

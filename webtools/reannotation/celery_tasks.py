@@ -26,13 +26,14 @@ def run_gender_train(self):
                                            always_test=False,
                                            is_annotated_gt=True,
                                            is_hard=False).all()
-    samples = [(s.image.filename, s.is_male) for s in samples]
+    samples = [(s.image.filename(), 1 if s.is_male else 0) for s in samples]
+    samples = samples[:1000]
 
     samples_test = GenderSample.query.filter_by(is_bad=False,
                                                 always_test=True,
                                                 is_annotated_gt=True,
                                                 is_hard=False).all()
-    samples_test = [(s.image.filename, s.is_male) for s in samples_test]
+    samples_test = [(s.image.filename(), 1 if s.is_male else 0) for s in samples_test]
     n_val = 1000
     if len(samples_test) > n_val:
         samples_val = random.sample(samples_test, n_val)

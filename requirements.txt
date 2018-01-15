@@ -64,3 +64,4 @@ furl
 celery[redis]
 mxnet>=1.0.0
 easydict
+pyyaml

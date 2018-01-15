@@ -1,7 +1,7 @@
 from os.path import isdir, join, basename
 from images_collection import ImagesCollection
 from mxnet import ndarray as nd
-from os import mkdir
+from os import mkdir, makedirs, getcwd
 import numpy as np
 import mxnet as mx
 import random
@@ -29,8 +29,13 @@ class ClsIter(mx.io.DataIter):
         self._sel_label = None
 
         self._batch_size = cfg.TRAIN.BATCH_SIZE if self._is_train else test_cfg.BATCH_SIZE
+
         self._debug_imgs = cfg.TRAIN.DEBUG_IMAGES if self._is_train else test_cfg.DEBUG_IMAGES
-        self._channel_num = 2 if cfg.GRAYSCALE else 4
+        self._debug_imgs = join(getcwd(), self._debug_imgs)
+        if not isdir(self._debug_imgs):
+            makedirs(self._debug_imgs)
+
+        self._channel_num = 1 if cfg.GRAYSCALE else 3
         self._data_shape = (self._channel_num, cfg.INPUT_SHAPE[1], cfg.INPUT_SHAPE[0])
         self._label_shape = (1, cfg.INPUT_SHAPE[1], cfg.INPUT_SHAPE[0])
 
@@ -105,20 +110,19 @@ class ClsIter(mx.io.DataIter):
         try:
             while sample_idx < batch_size:
                 sample = self.next_sample()
-                im, mask = sample.data
+                im = sample.data
                 label_orig = sample.label
 
-                im, mask = self._prepare_data_for_blobs(im, mask)
+                im = self._prepare_data_for_blobs(im)
 
                 # debug images
                 imname = basename(sample.id)
                 imnames.append(imname)
-                if self._debug_imgs:
-                    self._debug_image(im, mask, label_orig, imname, self._debug_imgs)
 
-                mask = mask[:,:,np.newaxis]
-                input_data = np.concatenate((im, mask), axis=2)
-                batch_data[sample_idx] = mx.nd.array(input_data)
+                if self._debug_imgs:
+                    self._debug_image(im, label_orig, imname, self._debug_imgs)
+
+                batch_data[sample_idx] = mx.nd.array(im)
                 batch_label[sample_idx] = label_orig
 
                 sample_idx += 1
@@ -139,7 +143,7 @@ class ClsIter(mx.io.DataIter):
         else:
             return data_batch
 
-    def _prepare_data_for_blobs(self, im, mask):
+    def _prepare_data_for_blobs(self, im):
         """Prepare image and mask for use in a blob."""
 
         do_aug = self._is_train
@@ -172,11 +176,9 @@ class ClsIter(mx.io.DataIter):
             crop_h = int(crop_h)
 
             im = im[crop_y:crop_y+crop_h,crop_x:crop_x+crop_w,:]
-            mask = mask[crop_y:crop_y+crop_h,crop_x:crop_x+crop_w]
 
             interpolation = cv2.INTER_AREA if prepare_sz[0] < im.shape[1] else cv2.INTER_LINEAR
             im = cv2.resize(im, prepare_sz, interpolation=interpolation)
-            mask = cv2.resize(mask, prepare_sz, interpolation=cv2.INTER_NEAREST)
 
         # deformation
         to_go = np.random.uniform(0, 1) < cfg.TRAIN.DISTORT.DEFORM_PROB
@@ -186,11 +188,9 @@ class ClsIter(mx.io.DataIter):
             if np.random.randint(0, 2):
                 # x axis
                 im = cv2.resize(im, (0, 0), fx=ratio, fy=1., interpolation=cv2.INTER_LINEAR)
-                mask = cv2.resize(mask, (0, 0), fx=ratio, fy=1., interpolation=cv2.INTER_NEAREST)
             else:
                 # y axis
                 im = cv2.resize(im, (0, 0), fx=1., fy=ratio, interpolation=cv2.INTER_LINEAR)
-                mask = cv2.resize(mask, (0, 0), fx=1., fy=ratio, interpolation=cv2.INTER_NEAREST)
 
         # rotate
         to_go = np.random.uniform(0, 1) < cfg.TRAIN.DISTORT.ROTATE_PROB
@@ -200,7 +200,6 @@ class ClsIter(mx.io.DataIter):
             angle = np.random.uniform(-cfg.TRAIN.DISTORT.MAX_ROTATE, cfg.TRAIN.DISTORT.MAX_ROTATE)
             M = cv2.getRotationMatrix2D((im_w / 2. + 0.5, im_h / 2. + 0.5), angle, 1)
             im = cv2.warpAffine(im, M, (im_w, im_h))
-            mask = cv2.warpAffine(mask, M, (im_w, im_h), cv2.INTER_NEAREST)
 
         # crop
         im_w = im.shape[1]
@@ -252,7 +251,6 @@ class ClsIter(mx.io.DataIter):
 
         if do_crop:
             im = im[cr[1]:cr[1]+cr[3],cr[0]:cr[0]+cr[2],:]
-            mask = mask[cr[1]:cr[1]+cr[3],cr[0]:cr[0]+cr[2]]
 
         im_w = im.shape[1]
         im_h = im.shape[0]
@@ -260,7 +258,6 @@ class ClsIter(mx.io.DataIter):
         # mirror
         if do_aug and cfg.TRAIN.DISTORT.USE_FLIP and np.random.randint(0, 2):
             im = np.fliplr(im)
-            mask = np.fliplr(mask)
 
         # add random rectangle
         to_go = np.random.uniform(0, 1) < cfg.TRAIN.DISTORT.OCCL_PROB
@@ -421,15 +418,10 @@ class ClsIter(mx.io.DataIter):
         # fit to target shape if needed
         if im.shape[0] != target_shape[1] or im.shape[1] != target_shape[0]:
             im = cv2.resize(im, target_shape, interpolation=cv2.INTER_AREA)
-        if mask.shape[0] != target_shape[1] or mask.shape[1] != target_shape[0]:
-            mask = cv2.resize(mask, target_shape, interpolation=cv2.INTER_NEAREST)
 
         im = im.astype(np.float32, copy=False)
-        mask = mask.astype(np.float32, copy=False)
-
         im = self._convert_color_space(im, inverse=False)
-
-        return im, mask
+        return im
 
     def _convert_color_space(self, im, inverse=False):
         cfg = self._cfg
@@ -472,31 +464,24 @@ class ClsIter(mx.io.DataIter):
                         im += cfg.MEAN_IMG
         return im
 
-    def _debug_image(self, im, mask, label, imname, output_dir):
+    def _debug_image(self, im, label, imname, output_dir):
 
         if self._n_debug_images > self._max_debug_images:
             return
 
         cfg = self._cfg
 
-        if not isdir(output_dir):
-            mkdir(output_dir)
+        try:
+            alpha = 0.5
+            im_cpy = im.copy()
 
-        alpha = 0.5
-        im_cpy = im.copy()
+            # color space
+            im_cpy = self._convert_color_space(im_cpy, inverse=True)
 
-        # color space
-        im_cpy = self._convert_color_space(im_cpy, inverse=True)
-
-        if not cfg.CUT_BY_MASK:
-            im_show = np.zeros((im.shape[0], 2 * im.shape[1], 3))
-            im_show[:,:im.shape[1],:] = im_cpy
-            im_cpy[mask > 0] = 255 * alpha + im_cpy[mask > 0] * (1 - alpha)
-            im_show[:,im.shape[1]:,:] = im_cpy
-        else:
             im_show = im_cpy
-            im_show[mask == 0] = 0
-        imname = '{}_{}.jpg'.format(label, np.random.randint(10))
-        cv2.imwrite(join(output_dir, imname), im_show)
+            imname = '{}_{}.jpg'.format(label, np.random.randint(10))
+            cv2.imwrite(join(output_dir, imname), im_show)
+        except:
+            return
 
         self._n_debug_images += 1

@@ -72,6 +72,11 @@ class Image(db.Model):
     def filename(self):
         return self.imdb.path + '/' + self.imname
 
+class TrainingTasks(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+    task_name = db.SDColumn(db.String(64), unique=True)
+    task_id = db.SDColumn(db.String(64))
+
 # first iteration is created when user tries to annotate in the first time
 # subsequently next iteration is created when training process is started
 class GenderIteration(db.Model):

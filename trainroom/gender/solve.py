@@ -5,28 +5,40 @@ import mxnet as mx
 from os import mkdir, getcwd
 import argparse
 from images_collection import ImagesCollection
-# from config import cfg, cfg_from_file
+from train_config import cfg, cfg_from_file
 from iterators import ClsIter
 from metrics import ClsMetric
 from utils import add_path
+from callbacks import StatusUpdater
 
 import logging
 logging.getLogger().setLevel(logging.INFO)
 
+def cfg_fix_paths(cfg, exp_dir, model_dir):
+    if cfg.TRAIN.DEBUG_IMAGES:
+        cfg.TRAIN.DEBUG_IMAGES = join(exp_dir, cfg.TRAIN.DEBUG_IMAGES)
+    if cfg.VALIDATION.DEBUG_IMAGES:
+        cfg.VALIDATION.DEBUG_IMAGES = join(exp_dir, cfg.VALIDATION.DEBUG_IMAGES)
+    if cfg.TEST.DEBUG_IMAGES:
+        cfg.TEST.DEBUG_IMAGES = join(exp_dir, cfg.TEST.DEBUG_IMAGES)
+    if cfg.TRAIN.PRETRAINED:
+        cfg.TRAIN.PRETRAINED = join(model_dir, cfg.TRAIN.PRETRAINED)
+
 def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False):
 
-    print(getcwd())
     snapshots_dir = join(exp_dir, 'snapshots')
     if not isdir(snapshots_dir):
         mkdir(snapshots_dir)
     snapshots_dir = '{}/'.format(snapshots_dir)
 
-    return
-
     cfg_file = join(exp_dir, 'config.yml')
     cfg_from_file(cfg_file)
+    cfg_fix_paths(cfg, exp_dir, join(trainroom_dir, 'models'))
 
-    devices = mx.gpu(cfg.GPU_ID)
+    if cfg.GPU_ID == -1:
+        devices = mx.cpu()
+    else:
+        devices = mx.gpu(cfg.GPU_ID)
 
     np.random.seed(cfg.RNG_SEED)
     mx.random.seed(cfg.RNG_SEED)
@@ -45,7 +57,6 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
             opt_params = __import__('get_optimizer_params')
             model = __import__('get_model')
             if cfg.TRAIN.PRETRAINED:
-                cfg.TRAIN.PRETRAINED = join(trainroom_dir, cfg.TRAIN.PRETRAINED)
                 sym_model, arg_params, aux_params = model.get_model_pretrained(cfg)
             else:
                 sym_model = model.get_model(cfg)
@@ -73,8 +84,11 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
     epochs_to_train = cfg.TRAIN.EPOCHS
 
     checkpoint_callback = mx.callback.do_checkpoint(snapshots_dir, snapshot_period)
-    validate_callback = None
     epoch_end_callbacks = [checkpoint_callback]
+
+    iters_per_epoch = int(total_samples / batch_size_train)
+    iters_per_epoch += 0 if total_samples % batch_size_train == 0 else 1
+    batch_end_callback = StatusUpdater(ctx, batch_size_train, epochs_to_train, iters_per_epoch, display)
 
     eval_metric = mx.metric.Accuracy()
     label_names = ('label',)
@@ -86,7 +100,7 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
         model.fit(train_iter,  # train data
                   eval_data=val_iter,  # validation data
                   eval_metric=eval_metric,  # report accuracy during training
-                  batch_end_callback = mx.callback.Speedometer(batch_size_train, display), # output progress for each 100 data batches
+                  batch_end_callback = batch_end_callback, # output progress for each 100 data batches
                   epoch_end_callback = epoch_end_callbacks,
                   arg_params=arg_params,
                   aux_params=aux_params,
@@ -100,7 +114,7 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
                   eval_data=val_iter,  # validation data
                   # eval_metric=mx.metric.MSE(),  # report accuracy during training
                   eval_metric=eval_metric,  # report accuracy during training
-                  batch_end_callback = mx.callback.Speedometer(batch_size_train, display), # output progress for each 100 data batches
+                  batch_end_callback = batch_end_callback, # output progress for each 100 data batches
                   epoch_end_callback = epoch_end_callbacks,
                   num_epoch=epochs_to_train)  # train for at most 10 dataset passes
 

@@ -28,7 +28,7 @@ from webtools.utils import apply_min_max_detections_filters, apply_timing_filter
     parse_min_max_detections_parameters, parse_timing_parameters, preprocess_paged_query, zipdir
 from webtools.wrappers import nocache
 
-from .models import Image, GenderSample, GenderUserIterAnnotation, GenderIteration
+from .models import Image, GenderSample, GenderUserIterAnnotation, GenderIteration, TrainingTasks
 from .forms import GenderDataForm
 from celery_tasks import run_train, long_task, train_on_error, train_on_success
 import celery
@@ -109,11 +109,24 @@ def get_random_gender_samples(base_url):
         samples_data.append(sample_data)
     return samples_data, is_male
 
+def get_running_gender_tasks():
+
+    training_task = TrainingTasks.query.filter_by(task_name='gender').first()
+    if training_task:
+        task_id = training_task.task_id
+    else:
+        task_id = ''
+
+    return task_id
+
 def gender_task(request):
     samples, is_male = get_random_gender_samples(request.url_root)
     form = GenderDataForm()
     stats = get_gender_stats()
-    ctx = {'stats': stats, 'is_empty': len(samples) == 0, 'samples': samples, 'is_male': is_male, 'ts': int(time.time())}
+    task_id = get_running_gender_tasks()
+    ctx = {'stats': stats, 'is_empty': len(samples) == 0, 'samples': samples,
+           'is_male': is_male, 'ts': int(time.time()),
+           'train-task-id': task_id}
     return render_template('reannotation_gender.html', ctx=ctx, form=form)
 
 def get_current_iteration(create_if_not_exist=False):
@@ -279,8 +292,17 @@ def trigger_train():
                    status_url=status_url, task_id=task_id, message='training started.'), 202
 
 def trigger_train_gender():
+    stop_all_training_task('gender')
     task = run_train.apply_async(('gender',), link_error=train_on_error.s(), link=train_on_success.s())
     return url_for('taskstatus', task_id=task.id), url_for('stop_train', task_id=task.id), task.id
+
+def stop_all_training_task(task_name):
+    training_tasks = TrainingTasks.query.filter_by(task_name=task_name).all()
+    for training_task in training_tasks:
+        task_id = training_task.task_id
+        celery.task.control.revoke(task_id, terminate=True)
+    training_tasks.delete()
+    app.db.commit()
 
 @app.route('/image/<int:id>', defaults={'minside': 0, 'maxside': 0}, methods=['GET'])
 @app.route('/image/<int:id>/<int:minside>', defaults={'maxside': 0}, methods=['GET'])
@@ -332,6 +354,15 @@ def taskstatus(task_id):
 
 @app.route('/stop_train/<task_id>', methods=['GET', 'POST'])
 def stop_train(task_id):
+
+    tasks = TrainingTasks.query.filter_by(task_id=task_id)
+    if tasks.count() == 0:
+        return jsonify({'status': 'ok', 'stopped': False, 'message': 'not task with id={}'.format(task_id)}), 202
+
     celery.task.control.revoke(task_id, terminate=True)
-    return jsonify({'status': 'ok', 'stopped': True}), 202
+    tasks.delete()
+    app.db.commit()
+
+    return jsonify({'status': 'ok', 'stopped': True,
+                    'message': 'task with id={} successfully stoped'.format(task_id)}), 202
 

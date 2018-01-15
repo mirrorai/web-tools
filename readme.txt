@@ -91,3 +91,5 @@ bower install --allow-root # fix in ubuntu
 
 # celery
 celery -A webtools.celery worker -B --concurrency 1 --loglevel=info
+
+# celery workers

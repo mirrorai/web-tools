@@ -60,6 +60,7 @@ var ReannotationManager =  new function() {
                     btn.data('state', 0);
 			        btn.removeClass('btn-warning').addClass('btn-success');
 			        delete self.updatingTasks[btn.data('task-id')];
+			        container.find('.progress_nanobar').remove();
                     callback(true);
     		    } else {
     		        callback(false)
@@ -141,7 +142,8 @@ var ReannotationManager =  new function() {
             }
 
             // update UI
-            percent = parseInt(data['current'] * 100 / data['total']);
+            percent = data['current'] * 100 / data['total'];
+            percent = percent.toFixed(2);
             nanobar.go(percent);
             $(status_div.childNodes[1]).text(percent + '%');
             $(status_div.childNodes[2]).text(data['status']);

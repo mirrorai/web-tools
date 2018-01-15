@@ -5,12 +5,13 @@ NORM_COEFF: 1.0
 PREPARE_SIZE: [108, 144]
 INPUT_SHAPE: [96, 128]
 CLS_TYPE: 'gender'
-GPU_ID: 1
+GPU_ID: -1
 TRAIN:
   PRETRAINED: 'resnet-18'
-  EPOCHS: 1
-  SNAPSHOT_PERIOD: 100
-  BATCH_SIZE: 128
+  EPOCHS: 10
+  SNAPSHOT_PERIOD: 10
+  BATCH_SIZE: 16
+  DISPLAY_ITERS: 1
   DEBUG_IMAGES: 'visualization/mxnet_exp1_hair_train_debug'
   DISTORT:
     USE_ROTATE: 1
@@ -39,9 +40,9 @@ TRAIN:
     USE_LOW_RES: 1
     LOW_RES_PROB: 0.25
 VALIDATION:
-  # DEBUG_IMAGES: '/home/ubuntu/projects/data/visualization/exp133_resnet_hair_val_debug'
-  BATCH_SIZE: 64
-  INTERVAL: 200
+  DEBUG_IMAGES: 'visualization/exp133_resnet_hair_val_debug'
+  BATCH_SIZE: 16
+  INTERVAL: 1
 TEST:
   BATCH_SIZE: 64
   SHOW_CMAT: True

@@ -162,8 +162,6 @@ __C.CROP_METHOD = 0
 __C.METHOD_VERSION = 0
 __C.CUT_BY_MASK = False
 
-__C.LABEL_START = 1
-
 # For reproducibility
 __C.RNG_SEED = 3
 
