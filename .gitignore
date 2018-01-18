@@ -34,3 +34,4 @@ trainroom/**/*.png
 trainroom/**/visualization
 trainroom/**/snapshots
 trainroom/**/output
+trainroom/**/exps/exp*

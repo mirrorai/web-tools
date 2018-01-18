@@ -21,58 +21,89 @@
 
 <main role="main" class="container">
   <!--<h2 style="margin-top: 0px;">Current tasks</h2>-->
-  <div class="list-group" style="margin-top: 0px;">
-    {% for task in tasks %}
+  <div id="main-list-group" class="list-group" style="margin-top: 0px;">
+    {% for problem in problems %}
+      <div id="{{problem['name_id']}}_content"
+           class="list-group-item justify-content-between {{ 'disabled' if not problem['enabled'] }}"
+           style="padding: 0px;" data-name-id="{{ problem['name_id'] }}">
 
-      <div class="list-group-item justify-content-between {{ 'disabled' if not task['enabled'] }}"
-           style="padding: 0px;">
-
-        <h3 class="list-group-item-heading" style="margin: 15px;">
-          {{ task['name'] }}
+        <h3 id="{{problem['name_id']}}_header" class="list-group-item-heading" style="margin: 15px;">
+          {{ problem['name'] }}
         </h3>
 
-        <div class="list-group">
-        {% if task['enabled'] and task['stats'] is not none %}
+        <div id="{{problem['name_id']}}_items"
+             style="{{'' if problem['enabled'] else 'display:none;'}}"
+             class="list-group">
 
-          <a href="{{'/reannotation?task=' + task['name_id'] if task['enabled'] else '#'}}"
+          <a id="{{problem['name_id']}}_annotation"
+             href="{{problem['annotation_url'] if problem['enabled'] else '#'}}"
              class="list-group-item annotation-subsection-item">
 
             <h4 class="list-group-item-heading lead">Annotation</h4>
             <p class="lead list-group-item-text">
-              total samples: <span class="label label-info">{{ task['stats']['total'] }}</span>
-              , to check: <span class="label label-info">{{ task['stats']['to_check'] }}</span>
-              , checked: <span class="label label-success">{{ task['stats']['total_checked'] }}</span>
-              , reannotated: <span class="label label-success">{{ task['stats']['total_reannotated'] }}</span>
+              total samples:
+              <span class="count-total label label-info">{{ problem['stats']['total'] if 'stats' in problem else 0 }}</span>
+              , to check:
+              <span class="count-to-check label label-info">{{ problem['stats']['to_check'] if 'stats' in problem else 0 }}</span>
+              , checked:
+              <span class="count-checked label label-success">{{ problem['stats']['total_checked'] if 'stats' in problem else 0 }}</span>
+              , reannotated:
+              <span class="count-reannotated label label-success">{{ problem['stats']['total_reannotated'] if 'stats' in problem else 0 }}</span>
             </p>
           </a>
 
-          <a href="#" class="list-group-item annotation-subsection-item">
+          <a id="{{problem['name_id']}}_metrics"
+             href="#"
+             style="{{'' if 'metrics' in problem else 'display:none;'}}"
+             class="list-group-item annotation-subsection-item">
             <h4 class="list-group-item-heading lead">Metrics</h4>
             <p class="lead list-group-item-text">
-              accuracy: <span class="label label-info">0.99992112</span>
-              , accuracy grouth: <span class="label label-success">1.2%</span>
-              , auc: <span class="label label-info">0.991212212</span>
+              accuracy: <span class="accuracy label label-info">0.99992112</span>
+              , accuracy grouth: <span class="accuracy-grouth label label-success">1.2%</span>
             </p>
           </a>
-
-          <div class="list-group-item annotation-subsection-item">
+          <div id="{{problem['name_id']}}_manager"
+               style="{{'' if 'tasks' in problem else 'display:none;'}}"
+               class="list-group-item annotation-subsection-item">
             <h4 class="list-group-item-heading lead">Manage</h4>
             <p class="lead list-group-item-text" style="margin-top: 15px;">
-              <button type="button" style="min-width: 100px;"
-                      class="btn-train btn btn-success"
-                      data-task-name="{{task['name_id']}}">
-                Train
-              </button>
-              <button type="button" style="min-width: 100px;" class="btn btn-success disabled">Test</button>
-              <button type="button" style="min-width: 100px;" class="btn btn-success disabled">Find errors</button>
-              <button type="button" style="min-width: 100px;" class="btn btn-success disabled">Deploy</button>
+              {% if 'tasks' in problem %}
+                {% for task in problem['tasks'] %}
+                  <div id="{{problem['name_id']+'_'+task['problem_type']}}"
+                       class="task-row row">
+                    <div class="col-sm-2 task-action-btn">
+                      {% set processing = 1 if 'finished_ts' in task and task['finished_ts'] is none else 0 %}
+                      {% if processing  %}
+                        <button type="button"
+                                data-state="on"
+                                data-stop-url="{{task['stop_url']}}"
+                                data-start-url="{{task['start_url']}}"
+                                class="btn btn-warning {{'disabled' if task['start_url']=='#' else ''}}">
+                          Stop
+                        </button>
+                      {% else %}
+                        <button type="button"
+                                data-state="off"
+                                data-stop-url="{{task['stop_url']}}"
+                                data-start-url="{{task['start_url']}}"
+                                class="btn btn-success {{'disabled' if task['start_url']=='#' else ''}}">
+                          {{task['label']}}
+                        </button>
+                      {% endif %}
+                    </div>
+                    <div class="col-sm-10 status-container">
+                      <div class="progress-nanobar-container">
+                        <div class="progress-nanobar"></div>
+                        <div class="progress-percent">0%</div>
+                        <div class="progress-status"></div>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
+              {% endif %}
             </p>
           </div>
-
-        {% endif %}
         </div>
-
-
       </div>
     {% endfor %}
   </div>
@@ -96,7 +127,10 @@
 
 <script type="text/javascript">
   $(document).ready(function() {
-    ReannotationManager.init();
+    var json_data = JSON.parse('{{ problems|tojson }}');
+    var update_url = '{{ update_url }}';
+    ReannotationManager.init(update_url);
+    ReannotationManager.update(json_data);
   });
 </script>
 {% endblock %}

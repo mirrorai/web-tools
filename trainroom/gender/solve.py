@@ -10,6 +10,7 @@ from iterators import ClsIter
 from metrics import ClsMetric
 from utils import add_path
 from callbacks import StatusUpdater
+import time
 
 import logging
 logging.getLogger().setLevel(logging.INFO)
@@ -98,7 +99,7 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
 
     if resume_model:
         model.fit(train_iter,  # train data
-                  eval_data=val_iter,  # validation data
+                  # eval_data=val_iter,  # validation data
                   eval_metric=eval_metric,  # report accuracy during training
                   batch_end_callback = batch_end_callback, # output progress for each 100 data batches
                   epoch_end_callback = epoch_end_callbacks,
@@ -111,11 +112,18 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
         model.init_optimizer(optimizer=optimizer, optimizer_params=optimizer_params)
 
         model.fit(train_iter,  # train data
-                  eval_data=val_iter,  # validation data
+                  # eval_data=val_iter,  # validation data
                   # eval_metric=mx.metric.MSE(),  # report accuracy during training
                   eval_metric=eval_metric,  # report accuracy during training
                   batch_end_callback = batch_end_callback, # output progress for each 100 data batches
                   epoch_end_callback = epoch_end_callbacks,
                   num_epoch=epochs_to_train)  # train for at most 10 dataset passes
+
+    ctx.update_state(state='PROGRESS', progress=1.0, status='saving model...')
+
+    prefix = snapshots_dir + '/model'
+    model.save_checkpoint(prefix, epochs_to_train)
+
+    return prefix, epochs_to_train
 
 

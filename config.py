@@ -33,6 +33,9 @@ class Config(object):
     IMAGE_CACHE_FOLDER = '__NOT_SET__'  # for resized frames
     TEMP_FOLDER = '__NOT_SET__'
     TRAINROOM_FOLDER = 'trainroom'
+    LIMIT_IMAGES_LOAD = 0
+
+    CV_PARTITION_FOLDS = 4
 
     # Mail sending
     MAIL_NO_REPLY_SENDER = '{} < no-reply-{}@mirror-ai.com >'.format(SITE_NAME, SITE_NAME.lower())
@@ -66,9 +69,9 @@ class Config(object):
     # CELERY_BROKER_URL = 'amqp://{}:{}@localhost/{}'.format(RABBITMQ_NAME, RABBITMQ_PASS, RABBITMQ_VHOST)
     # CELERY_RESULT_BACKEND = 'amqp://{}:{}@localhost/{}'.format(RABBITMQ_NAME, RABBITMQ_PASS, RABBITMQ_VHOST)
 
-    CELERY_BROKER_URL = 'amqp://localhost/'
+    CELERY_BROKER_URL = 'amqp://127.0.0.1'
     # CELERY_BACKEND_URL = 'amqp://localhost/'
-    CELERY_RESULT_BACKEND = 'amqp://localhost/'
+    CELERY_RESULT_BACKEND = 'amqp://127.0.0.1'
     CELERY_TASK_PROTOCOL = 1
 
     CELERY_TIMEZONE = 'UTC'
@@ -98,32 +101,11 @@ class DevelopmentConfig(Config):
     IMAGE_FOLDER = os.path.join(basedir, 'images/')
     IMAGE_CACHE_FOLDER = os.path.join(basedir, 'cache_images/')
     TEMP_FOLDER = os.path.join(basedir, 'temp_data/')
+    LIMIT_IMAGES_LOAD = 2000
 
     # SqlAlchemy
     # SQLALCHEMY_DATABASE_URI = 'mysql://root:Mug0aenoPhi5koh4@localhost/medicine_dev'
-    SQLALCHEMY_DATABASE_URI = 'sqlite:////Users/denemmy/projects/mirror_ai/web-server/web-tools/database/webtools.db'
-    SQLALCHEMY_DATABASE_URI = 'sqlite:////home/ubuntu/projects/web-tools/database/webtools.db'
-
-class DevelopmentLocalConfig(Config):
-    CONFIG_TAG = ('[D]', 'DevelopmentLocal')
-
-    # Current environment
-    DEVELOPMENT = True
-    # SERVER_NAME = 'localhost'
-
-    # Debug features
-    DEBUG = True
-    DEBUG_TB_INTERCEPT_REDIRECTS = False  # Debug toolbar redirect interception
-    TEMPLATES_AUTO_RELOAD = True
-    DEBUG_TB_ENABLED = False
-
-    # Image handling
-    IMAGE_FOLDER = os.path.join(basedir, 'images/')
-    IMAGE_CACHE_FOLDER = os.path.join(basedir, 'cache_images/')
-    TEMP_FOLDER = os.path.join(basedir, 'temp_data/')
-
-    # SqlAlchemy
-    SQLALCHEMY_DATABASE_URI = 'sqlite:////Users/denemmy/projects/mirror_ai/web-server/web-tools/database/webtools.db'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'database/webtools.db')
 
 class StagingConfig(Config):
     CONFIG_TAG = ('[S]', 'Staging')

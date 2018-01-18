@@ -93,3 +93,10 @@ bower install --allow-root # fix in ubuntu
 celery -A webtools.celery worker -B --concurrency 1 --loglevel=info
 
 # celery workers
+ps aux|grep 'celery worker'
+pkill -f "celery worker"
+
+# autoreload
+celery webtools.celery worker -B --concurrency 1 --loglevel=info \
+    --autoreload \
+    --include=$(find . -name "*.py" -type f | awk '{sub("\./",""); gsub("/", "."); sub(".py",""); print}' ORS=',' | sed 's/.$//')

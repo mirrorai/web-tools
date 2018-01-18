@@ -2,3 +2,39 @@
 .progress_nanobar {
   margin-top: 20px;
 }
+
+.status-container {
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.4;
+  margin-bottom: 15px;
+  padding: 0px;
+}
+
+@media (min-width: 768px) {
+  .status-container {
+    padding-left: 10px;
+  }
+  .task-action-btn  {
+  }
+}
+
+.task-row {
+  border-bottom: #eee 1px solid;
+  margin: 0px;
+  margin-bottom: 15px;
+}
+
+.task-action-btn {
+  padding: 0px;
+}
+
+.task-action-btn > .btn {
+  display:inline-block;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.annotation-subsection-item .list-group-item-text {
+  line-height: 1.8;
+}

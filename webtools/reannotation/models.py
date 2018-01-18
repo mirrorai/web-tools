@@ -72,16 +72,23 @@ class Image(db.Model):
     def filename(self):
         return self.imdb.path + '/' + self.imname
 
-class TrainingTasks(db.Model):
+class LearningTask(db.Model):
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
-    task_name = db.SDColumn(db.String(64), unique=True)
+    problem_name = db.SDColumn(db.String(128))
+    problem_type = db.SDColumn(db.String(64))
     task_id = db.SDColumn(db.String(64))
 
-# first iteration is created when user tries to annotate in the first time
-# subsequently next iteration is created when training process is started
-class GenderIteration(db.Model):
-    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
-    is_training = db.SDColumn(db.Boolean, default=False)
+    __table_args__ = (
+        db.UniqueConstraint('problem_name', 'problem_type'),
+    )
+
+    # 'PENDING' 'SUCCESS' 'PROGRESS', 'REVOKED', 'FAILED'
+    state = db.SDColumn(db.String(64), default='PENDING')
+    status = db.SDColumn(db.String(512), default='Pending..')
+    progress = db.SDColumn(db.Float, default=0.0)
+
+    started_ts = db.SDColumn(ArrowType)
+    finished_ts = db.SDColumn(ArrowType, nullable=True)
 
 class GenderSample(db.Model):
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
@@ -108,28 +115,32 @@ class GenderSample(db.Model):
     is_checked = db.SDColumn(db.Boolean, default=False)
 
     # cv partition
-    partition_id = db.SDColumn(
-        db.Integer,
-        db.ForeignKey('gender_cross_valid_partition.id', onupdate='CASCADE', ondelete='CASCADE'),
-        nullable=True
-    )
     k_fold = db.SDColumn(db.Integer, nullable=True) # 0,1,2...K
     always_test = db.SDColumn(db.Integer, default=False) # always keep sample for testing
 
-class GenderCrossValidPartition(db.Model):
+class LearnedModel(db.Model):
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
-    k_folds = db.SDColumn(db.Integer) # number of folds
+    problem_name = db.SDColumn(db.String(64))
+    task_id = db.SDColumn(db.String(64))
 
-class GenderModel(db.Model):
-    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
-    snapshot_prefix = db.SDColumn(db.String(512))
+    exp_dir = db.SDColumn(db.String(512), nullable=True)
+    prefix = db.SDColumn(db.String(512), nullable=True)
     epoch = db.SDColumn(db.Integer, nullable=True)
     k_fold = db.SDColumn(db.Integer, nullable=True)
 
-class GenderUserIterAnnotation(db.Model):
+class GenderSampleResult(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+    model_id = db.SDColumn(
+        db.Integer,
+        db.ForeignKey('learned_model.id', onupdate='CASCADE', ondelete='CASCADE')
+    )
+    prob_pos = db.SDColumn(db.Float)
+    prob_neg = db.SDColumn(db.Float)
+
+class GenderUserAnnotation(db.Model):
 
     __table_args__ = (
-        db.UniqueConstraint('sample_id', 'user_id', 'iteration_id'),
+        db.UniqueConstraint('sample_id', 'user_id'),
     )
 
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
@@ -153,11 +164,6 @@ class GenderUserIterAnnotation(db.Model):
         uselist=False,
         cascade='all, delete-orphan',
         single_parent=True
-    )
-
-    iteration_id = db.SDColumn(
-        db.Integer,
-        db.ForeignKey('gender_iteration.id', onupdate='CASCADE', ondelete='CASCADE')
     )
 
     # annotation data

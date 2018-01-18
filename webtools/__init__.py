@@ -117,6 +117,23 @@ def make_celery(application):
 celery = make_celery(app)
 app.celery = celery
 
+from flask.json import JSONEncoder
+import arrow
+
+class ArrowJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        try:
+            if isinstance(obj, arrow.Arrow):
+                return obj.format('YYYY-MM-DD HH:mm:ss')
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return JSONEncoder.default(self, obj)
+
+app.json_encoder = ArrowJSONEncoder
+
 # Populating views and models from modules
 from . import models
 from .reannotation import models

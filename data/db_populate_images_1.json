@@ -1,8 +1,0 @@
-{
-	"commands": [
-		{
-			"name": "add_new_images",
-			"base-dir": "/home/local/projects/data/blood_cells_16_10_25"
-		}
-	]
-}

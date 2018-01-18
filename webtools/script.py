@@ -18,7 +18,7 @@ import codecs
 from os.path import join, splitext, basename, dirname, isfile, isdir
 
 from . import app
-from .reannotation.models import Image, GenderSample, GenderUserIterAnnotation, ImagesDatabase
+from .reannotation.models import Image, GenderSample, GenderUserAnnotation, ImagesDatabase
 
 from .utils import camelcase_to_snakecase, mkdir_p, list_subdirs, \
     list_images, check_image, validate_size, query_yes_no, get_number, find_fp_fn, \
@@ -99,6 +99,8 @@ class AddImageDB(Command):
 
         accepted_samples = []
         skipped = 0
+        accepted = 0
+        limit = app.config.get('LIMIT_IMAGES_LOAD')
         for local_path, label in samples:
             img_path = join(base_dir, local_path)
             if not isfile(img_path):
@@ -118,6 +120,10 @@ class AddImageDB(Command):
                 return
 
             accepted_samples.append((local_path, is_male, img.shape))
+
+            accepted += 1
+            if limit > 0 and accepted >= limit:
+                break
 
         print('total images accepted: {}'.format(len(accepted_samples)))
         print('total images skipped: {}'.format(skipped))
@@ -264,7 +270,7 @@ class CleanSamples(Command):
 
         samples_count = GenderSample.query.count()
 
-        GenderUserIterAnnotation.delete()
+        GenderUserAnnotation.delete()
         ImagesDatabase.query.delete()
         GenderSample.query.delete()
         Image.query.delete()
