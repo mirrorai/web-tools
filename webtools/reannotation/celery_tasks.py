@@ -117,10 +117,10 @@ def run_gender_train(self, k_fold=None):
 
     return {'current': 100, 'total': 100, 'status': 'Model successfully trained'}
 
-def clear_data_for_train_task(uuid):
+def clear_data_for_train_task(uuid, state, status):
     tasks = LearningTask.query.filter_by(task_id=uuid)
     ts = arrow.now()
-    tasks.update(dict(finished_ts=ts, progress=1.0, state='FAILURE', status='Error occurred while training'))
+    tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
     app.db.session.flush()
     app.db.session.commit()
 
@@ -136,7 +136,7 @@ def clear_data_for_train_task(uuid):
 
 @app.celery.task
 def train_on_error(uuid):
-    clear_data_for_train_task(uuid)
+    clear_data_for_train_task(uuid, 'FAILURE', 'Error occurred while training')
     return {'current': 1, 'total': 1, 'status': 'Error during training occured',
                 'result': 0}
 
@@ -155,39 +155,38 @@ def run_test(self, taskname, k_fold=None):
 
 def run_gender_test(self, k_fold=None):
 
-    self.update_state(state='PROGRESS',
-                      meta={'current': 0, 'total': 1, 'status': 'Preparing samples for testing..'})
+    updater = StatusUpdater(self.request.id)
+    updater.update_state(state='PROGRESS', progress=0.01, status='Preparing samples for training..')
 
     time.sleep(5)
 
-    for i in range(10):
-        self.update_state(state='PROGRESS',
-                          meta={'current': i + 1, 'total': 10, 'status': 'Testing..'})
+    steps = 10
+    for i in range(steps):
+        progress = 0.01 + 0.99 * float(i) / steps
+        updater.update_state(state='PROGRESS', progress=progress, status='Preparing samples for training..')
         time.sleep(2)
 
-    # remove task from db
+    # update task
     tasks = LearningTask.query.filter_by(task_id=self.request.id)
-    if tasks.count() == 0:
-        print('{}: no task'.format(self.request.id))
-    else:
-        print('{}: deleting task from db'.format(self.request.id))
-
-    tasks.delete()
-    app.db.session.flush()
-    app.db.session.commit()
-
-    return {'current': 100, 'total': 100, 'status': 'Testing successfully finished.'}
-
-def clear_data_for_test_task(uuid):
-    tasks = LearningTask.query.filter_by(task_id=uuid)
     ts = arrow.now()
     tasks.update(dict(finished_ts=ts, progress=1.0))
     app.db.session.flush()
     app.db.session.commit()
 
+    updater.update_state(state='SUCCESS', progress=1.0, status='Models successfully tested')
+
+    return {'current': 100, 'total': 100, 'status': 'Testing successfully finished.'}
+
+def clear_data_for_test_task(uuid, state, status):
+    tasks = LearningTask.query.filter_by(task_id=uuid)
+    ts = arrow.now()
+    tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
+    app.db.session.flush()
+    app.db.session.commit()
+
 @app.celery.task
 def test_on_error(uuid):
-    clear_data_for_test_task(uuid)
+    clear_data_for_test_task(uuid, 'FAILURE', 'Error occurred while testing')
     return {'current': 1, 'total': 1, 'status': 'Error during testing occured.',
             'result': 0}
 

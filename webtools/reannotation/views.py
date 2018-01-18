@@ -367,7 +367,7 @@ def trigger_train_gender():
 @login_required
 def stop_train(task_id):
     celery.task.control.revoke(task_id, terminate=True)
-    clear_data_for_train_task(task_id)
+    clear_data_for_train_task(task_id, 'REVOKED', 'Stopped')
 
     print('task {} successfully stopped'.format(task_id))
     response = dict(status='ok', stopped=True, problems=get_problems(),
@@ -411,7 +411,7 @@ def trigger_test_gender():
 @login_required
 def stop_test(task_id):
     celery.task.control.revoke(task_id, terminate=True)
-    clear_data_for_test_task(task_id)
+    clear_data_for_test_task(task_id, 'REVOKED', 'Stopped')
 
     print('task {} successfully stopped'.format(task_id))
     response = dict(status='ok', stopped=True, problems=get_problems(),
