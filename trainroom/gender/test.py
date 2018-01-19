@@ -102,6 +102,11 @@ def test(ctx, snapshot, epoch, samples, exp_dir):
     cfg_fix_paths(cfg, exp_dir)
     test_cfg = cfg.TEST
 
+    print('test')
+    print(exp_dir)
+    print(cfg.TEST.DEBUG_IMAGES)
+    print('cfg...')
+
     if cfg.GPU_ID == -1:
         devices = mx.cpu()
     else:
@@ -124,6 +129,7 @@ def test(ctx, snapshot, epoch, samples, exp_dir):
 
     gt_labels_all = None
     pr_labels_all = None
+    pr_probs_all = None
 
     total_batches = int(len(samples) / test_cfg.BATCH_SIZE)
     total_batches += 0 if len(samples) % test_cfg.BATCH_SIZE == 0 else 1
@@ -139,14 +145,16 @@ def test(ctx, snapshot, epoch, samples, exp_dir):
         acc_metric.update(labels=[gt_labels], preds=[pr_probs])
 
         gt_labels = gt_labels.asnumpy().astype(np.int32)
-        pr_labels = np.argmax(pr_probs.asnumpy(), axis=1) # shape (batch_size, num_classes)
+        pr_probs = pr_probs.asnumpy() # shape (batch_size, num_classes)
+        pr_labels = np.argmax(pr_probs, axis=1) # shape (batch_size, 1)
 
         gt_labels_all = gt_labels if gt_labels_all is None else np.concatenate((gt_labels_all, gt_labels))
         pr_labels_all = pr_labels if pr_labels_all is None else np.concatenate((pr_labels_all, pr_labels))
+        pr_probs_all = pr_probs if pr_probs_all is None else np.concatenate((pr_probs_all, pr_probs))
 
     res = acc_metric.get()
     name, value = res
     log_str = 'test results'
     print('{}: {}: {}'.format(log_str, name, value))
 
-    return res
+    return pr_probs_all

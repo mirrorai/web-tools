@@ -80,9 +80,12 @@ class Config(object):
         'print_echo_every_10_minutes': {
             'task': 'webtools.cron_tasks.print_echo',
             'schedule': timedelta(minutes=10)
+        },
+        'clean_waste_models_every_1_hour': {
+            'task': 'webtools.cron_tasks.clean_waste_models',
+            'schedule': timedelta(hours=1)
         }
     }
-
 
 class DevelopmentConfig(Config):
     CONFIG_TAG = ('[D]', 'Development')

@@ -66,7 +66,7 @@ apt-get install uwsgi-plugin-python
 /etc/init.d/mysql stop
 
 # start mysql
-/etc/init.d/mysql start
+/etc/init.d /mysql start
 
 # restart mysql
 /etc/init.d/mysql restart
@@ -91,6 +91,8 @@ bower install --allow-root # fix in ubuntu
 
 # celery
 celery -A webtools.celery worker -B --concurrency 1 --loglevel=info
+# clear queue
+celery -A webtools.celery purge
 
 # celery workers
 ps aux|grep 'celery worker'

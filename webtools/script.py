@@ -18,7 +18,7 @@ import codecs
 from os.path import join, splitext, basename, dirname, isfile, isdir
 
 from . import app
-from .reannotation.models import Image, GenderSample, GenderUserAnnotation, ImagesDatabase
+from .reannotation.models import Image, GenderSample, GenderUserAnnotation, ImagesDatabase, LearnedModel
 
 from .utils import camelcase_to_snakecase, mkdir_p, list_subdirs, \
     list_images, check_image, validate_size, query_yes_no, get_number, find_fp_fn, \
@@ -218,6 +218,39 @@ class DatabaseCommand(Command):
 
         print('users: {}'.format(total))
         return True
+
+class CleanWasteModels(Command):
+    """Removes all snapshots and cached images that are not referenced from DB"""
+
+    def run(self, **kwargs):
+        self.clean_models()
+
+    @staticmethod
+    def clean_models():
+
+        problems = ['gender']
+
+        for problem_name in problems:
+
+            base_dir = join(app.config.get('TRAINROOM_FOLDER'), problem_name, 'exps')
+            subdirs = list_subdirs(base_dir, pattern='exp\d{1,10}_(?:main|fold\d{1,10})')
+
+            models = LearnedModel.query.filter_by(problem_name=problem_name).all()
+            allowed_exps_dirs = {'base_exp': True}
+            for model in models:
+                allowed_exps_dirs[basename(model.exp_dir)] = True
+
+            keeped, removed = 0, 0
+            for subdir in subdirs:
+                if subdir not in allowed_exps_dirs:
+                    print('delete {}'.format(subdir))
+                    shutil.rmtree(join(base_dir, subdir))
+                    removed += 1
+                else:
+                    keeped += 1
+
+            print('{}: {} deleted, {} keeped'.format(problem_name, removed, keeped))
+
 
 class CleanWasteImages(Command):
     """Removes all snapshots and cached images that are not referenced from DB"""

@@ -6,7 +6,7 @@ import random
 from os.path import join, isdir
 from os import mkdir, makedirs
 from sqlalchemy import func, or_, and_, desc, not_
-from models import GenderSample, LearningTask, LearnedModel, GenderUserAnnotation
+from models import GenderSample, LearningTask, LearnedModel, GenderUserAnnotation, GenderSampleResult
 from shutil import copyfile
 from ..utils import add_path
 import sys
@@ -68,16 +68,6 @@ def dump_task(self):
     return {'current': 100, 'total': 100, 'status': 'Task completed.',
             'result': 0}
 
-@app.celery.task(bind=True)
-def run_train(self, taskname):
-    if taskname == 'gender':
-        updater = StatusUpdater(self.request.id)
-        run_gender_train(updater, self.request.id)
-        return dump_result()
-    else:
-        print('uknown taskname: {}'.format(taskname))
-        return dump_result()
-
 def get_samples(test=False, k_fold=None):
     samples_gt = app.db.session.query(GenderSample). \
         filter(and_(GenderSample.is_hard==False,
@@ -97,6 +87,17 @@ def get_samples(test=False, k_fold=None):
     samples = [(s.image.filename(), 1 if s.is_male else 0) for s in samples_gt]
     samples.extend([(s.image.filename(), 1 if s.is_male else 0) for s in samples_ann])
     return samples
+
+# train
+@app.celery.task(bind=True)
+def run_train(self, taskname):
+    if taskname == 'gender':
+        updater = StatusUpdater(self.request.id)
+        run_gender_train(updater, self.request.id)
+        return dump_result()
+    else:
+        print('uknown taskname: {}'.format(taskname))
+        return dump_result()
 
 def run_gender_train(updater, task_id, k_fold=None):
 
@@ -154,23 +155,6 @@ def run_gender_train(updater, task_id, k_fold=None):
 
     return model.id
 
-def clear_data_for_train_task(uuid, state, status):
-    tasks = LearningTask.query.filter_by(task_id=uuid)
-    ts = arrow.now()
-    tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
-    app.db.session.flush()
-    app.db.session.commit()
-
-    gender_model = LearnedModel.query.filter_by(task_id=uuid)
-    if gender_model.count() == 0:
-        print('{}: no models'.format(uuid))
-    else:
-        print('{}: deleting models from db'.format(uuid))
-
-    gender_model.delete()
-    app.db.session.flush()
-    app.db.session.commit()
-
 @app.celery.task
 def train_on_error(uuid):
     clear_data_for_train_task(uuid, 'FAILURE', 'Error occurred while training')
@@ -183,6 +167,19 @@ def train_on_success(result):
     return {'current': 1, 'total': 1, 'status': 'Training successfully finished',
             'result': 0}
 
+def clear_data_for_train_task(uuid, state, status):
+    tasks = LearningTask.query.filter_by(task_id=uuid)
+    ts = arrow.now()
+    tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
+    app.db.session.flush()
+    app.db.session.commit()
+
+    gender_model = LearnedModel.query.filter_by(task_id=uuid)
+    gender_model.delete()
+    app.db.session.flush()
+    app.db.session.commit()
+
+# test
 @app.celery.task(bind=True)
 def run_test(self, taskname):
     if taskname == 'gender':
@@ -193,7 +190,7 @@ def run_test(self, taskname):
         print('uknown taskname: {}'.format(taskname))
         return dump_result()
 
-def run_gender_test(updater, task_id, model_id=None):
+def run_gender_test(updater, task_id, k_fold=None):
 
     updater.update_state(state='PROGRESS', progress=0.005, status='Preparing samples for testing..')
     samples = get_samples(test=True)
@@ -225,22 +222,26 @@ def run_gender_test(updater, task_id, model_id=None):
     updater.push_prefix('Model [1] ')
     with add_path(trainroom_gender):
         test_module = __import__('test')
-        metric_name, metric_value = test_module.test(updater, snapshot, epoch, samples, exp_dir)
+        pr_probs = test_module.test(updater, snapshot, epoch, samples, exp_dir)
         del sys.modules['test']
 
     updater.pop_rescale()
     updater.pop_prefix()
 
+    assert(len(samples) == pr_probs.shape[0])
+    for i in range(len(samples)):
+        pr_prob = pr_probs[i,:]
+        prob_neg = pr_prob[0]
+        prob_pos = pr_prob[1]
+        result_sample = GenderSampleResult(model_id=gender_model.id, prob_neg=prob_neg, prob_pos=prob_pos)
+        app.db.session.add(result_sample)
+        app.db.session.flush()
+
+    app.db.session.commit()
+
     updater.update_state(state='SUCCESS', progress=1.0,
                          status='Models successfully tested, {}={:.3f}'.format(metric_name,metric_value))
     updater.finish(arrow.now())
-
-def clear_data_for_test_task(uuid, state, status):
-    tasks = LearningTask.query.filter_by(task_id=uuid)
-    ts = arrow.now()
-    tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
-    app.db.session.flush()
-    app.db.session.commit()
 
 @app.celery.task
 def test_on_error(uuid):
@@ -254,25 +255,29 @@ def test_on_success(result):
     return {'current': 1, 'total': 1, 'status': 'Testing successfully finished',
             'result': 0}
 
+def clear_data_for_test_task(uuid, state, status):
+    tasks = LearningTask.query.filter_by(task_id=uuid)
+    ts = arrow.now()
+    tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
+    app.db.session.flush()
+    app.db.session.commit()
+
+# train k-folds
 @app.celery.task(bind=True)
-def run_find_errors(self, taskname, k_fold):
+def run_train_k_folds(self, taskname, k_fold):
     if taskname == 'gender':
         updater = StatusUpdater(self.request.id)
-        updater.push_prefix('Training fold {} '.format(k_fold))
         updater.push_rescale(0.0, 0.9)
 
         model_id = run_gender_train(updater, self.request.id, k_fold=k_fold)
 
         updater.pop_rescale()
-        updater.pop_prefix()
 
-        updater.push_prefix('Testing fold {} '.format(k_fold))
         updater.push_rescale(0.9, 0.1)
 
         run_gender_test(updater, self.request.id, model_id=model_id)
 
         updater.pop_rescale()
-        updater.pop_prefix()
 
         return dump_result()
     else:
@@ -280,18 +285,18 @@ def run_find_errors(self, taskname, k_fold):
         return dump_result()
 
 @app.celery.task
-def find_errors_on_error(uuid):
-    clear_data_for_find_errors_task(uuid, 'FAILURE', 'Error occurred while testing')
-    return {'current': 1, 'total': 1, 'status': 'Error during finding errors occured.',
+def train_k_folds_on_error(uuid):
+    clear_data_for_train_k_folds_task(uuid, 'FAILURE', 'Error occurred while training')
+    return {'current': 1, 'total': 1, 'status': 'Error during training occured.',
             'result': 0}
 
 @app.celery.task
-def find_errors_on_success(result):
-    print('Finding errors successfully finished')
-    return {'current': 1, 'total': 1, 'status': 'Finding errors successfully finished',
+def train_k_folds_on_success(result):
+    print('Training successfully finished')
+    return {'current': 1, 'total': 1, 'status': 'Training successfully finished',
             'result': 0}
 
-def clear_data_for_find_errors_task(uuid, state, status):
+def clear_data_for_train_k_folds_task(uuid, state, status):
     tasks = LearningTask.query.filter_by(task_id=uuid)
     ts = arrow.now()
     tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
@@ -300,5 +305,35 @@ def clear_data_for_find_errors_task(uuid, state, status):
 
     gender_model = LearnedModel.query.filter_by(task_id=uuid)
     gender_model.delete()
+    app.db.session.flush()
+    app.db.session.commit()
+
+# test k-folds
+@app.celery.task(bind=True)
+def run_test_k_folds(self, taskname, k_fold):
+    if taskname == 'gender':
+        updater = StatusUpdater(self.request.id)
+        run_gender_test(updater, self.request.id, k_fold=k_fold)
+        return dump_result()
+    else:
+        print('uknown taskname: {}'.format(taskname))
+        return dump_result()
+
+@app.celery.task
+def test_k_folds_on_error(uuid):
+    clear_data_for_test_k_folds_task(uuid, 'FAILURE', 'Error occurred while testing')
+    return {'current': 1, 'total': 1, 'status': 'Error during testing occured.',
+            'result': 0}
+
+@app.celery.task
+def test_k_folds_on_success(result):
+    print('Testing successfully finished')
+    return {'current': 1, 'total': 1, 'status': 'Testing successfully finished',
+            'result': 0}
+
+def clear_data_for_test_k_folds_task(uuid, state, status):
+    tasks = LearningTask.query.filter_by(task_id=uuid)
+    ts = arrow.now()
+    tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
     app.db.session.flush()
     app.db.session.commit()

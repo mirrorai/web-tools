@@ -72,14 +72,14 @@
                   <div id="{{problem['name_id']+'_'+task['problem_type']}}"
                        class="task-row row">
                     <div class="col-sm-2 task-action-btn">
-                      {% set processing = 1 if not task['is_finished'] else 0 %}
+                      {% set processing = 1 if not task['is_finished'] and task['tasks']|length > 0 else 0 %}
                       {% if processing  %}
                         <button type="button"
                                 data-state="on"
                                 data-stop-url="{{task['stop_url']}}"
                                 data-start-url="{{task['start_url']}}"
                                 class="btn btn-warning {{'disabled' if task['start_url']=='#' else ''}}">
-                          Stop
+                          {{task['label']}} stop
                         </button>
                       {% else %}
                         <button type="button"

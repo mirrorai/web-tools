@@ -33,20 +33,26 @@ from .forms import GenderDataForm
 from .celery_tasks import dump_task
 from .celery_tasks import run_train, train_on_error, train_on_success, clear_data_for_train_task
 from .celery_tasks import run_test, test_on_error, test_on_success, clear_data_for_test_task
-from .celery_tasks import run_find_errors, find_errors_on_error, find_errors_on_success, clear_data_for_find_errors_task
+from .celery_tasks import run_train_k_folds, train_k_folds_on_error, train_k_folds_on_success, \
+    clear_data_for_train_k_folds_task
+from .celery_tasks import run_test_k_folds, test_k_folds_on_error, test_k_folds_on_success, \
+    clear_data_for_test_k_folds_task
 import celery
 
 # Shortcuts
 db = app.db
 
+# common functions
 def get_trigger_url_for(problem_name, problem_type):
 
     if problem_type == 'train':
         return url_for('trigger_train', problem_name=problem_name)
     elif problem_type == 'test':
         return url_for('trigger_test', problem_name=problem_name)
-    elif problem_type == 'find_errors':
-        return url_for('trigger_find_errors', problem_name=problem_name)
+    elif problem_type == 'train_k_folds':
+        return url_for('trigger_train_k_folds', problem_name=problem_name)
+    elif problem_type == 'test_k_folds':
+        return url_for('trigger_test_k_folds', problem_name=problem_name)
     else:
         return '#'
 
@@ -56,8 +62,10 @@ def get_stop_url_for(problem_type, task_id):
         return url_for('stop_train', task_id=task_id)
     elif problem_type == 'test':
         return url_for('stop_test', task_id=task_id)
-    elif problem_type == 'find_errors':
-        return url_for('stop_find_errors', task_ids_str=task_id)
+    elif problem_type == 'train_k_folds':
+        return url_for('stop_train_k_folds', task_ids_str=task_id)
+    elif problem_type == 'test_k_folds':
+        return url_for('stop_test_k_folds', task_ids_str=task_id)
     else:
         return '#'
 
@@ -65,7 +73,8 @@ def get_problem_types_labels_map():
     labels = {}
     labels['train'] = 'Train'
     labels['test'] = 'Test'
-    labels['find_errors'] = 'Find errors'
+    labels['train_k_folds'] = 'Train k-folds'
+    labels['test_k_folds'] = 'Test k-folds'
     labels['deploy'] = 'Deploy'
     return labels
 
@@ -73,8 +82,9 @@ def get_problem_types_order():
     labels = {}
     labels['train'] = 1
     labels['test'] = 2
-    labels['find_errors'] = 3
-    labels['deploy'] = 4
+    labels['train_k_folds'] = 3
+    labels['test_k_folds'] = 4
+    labels['deploy'] = 5
     return labels
 
 def get_learning_tasks(problem_name):
@@ -115,7 +125,7 @@ def get_learning_tasks(problem_name):
             resp_map[problem_type]['stop_url'] = get_stop_url_for(problem_type, task_ids)
             resp_map[problem_type]['tasks'] = sorted(resp_map[problem_type]['tasks'],key=lambda x: x['k_fold'])
 
-    problem_types_all = ['train', 'test', 'find_errors', 'deploy']
+    problem_types_all = ['train', 'test', 'train_k_folds', 'test_k_folds', 'deploy']
     for problem_type in problem_types_all:
         if problem_type not in resp_map:
             item = {}
@@ -146,19 +156,87 @@ def task_filter(resp_map, models_count, annotated_count):
         resp_map['deploy']['start_url'] = '#'
         resp_map['deploy']['stop_url'] = '#'
 
+        resp_map['test_k_folds']['start_url'] = '#'
+        resp_map['test_k_folds']['stop_url'] = '#'
+
     if annotated_count == 0:
         resp_map['train']['start_url'] = '#'
         resp_map['train']['stop_url'] = '#'
 
-        resp_map['find_errors']['start_url'] = '#'
-        resp_map['find_errors']['stop_url'] = '#'
+        resp_map['train_k_folds']['start_url'] = '#'
+        resp_map['train_k_folds']['stop_url'] = '#'
 
-def get_learned_models_count(problem_name):
+def get_learned_models_count(problem_name, k_fold=None):
     models = LearnedModel.query.filter(and_(LearnedModel.problem_name==problem_name,
-                                            LearnedModel.k_fold==None,
+                                            LearnedModel.k_fold==k_fold,
                                             LearnedModel.prefix!=None))
     return models.count()
 
+def check_working_tasks(problem_name, problem_type):
+    return LearningTask.query.\
+               filter_by(problem_type=problem_type,problem_name=problem_name,finished_ts=None)\
+               .count() > 0
+
+def stop_all_learning_task(problem_name):
+    learning_task = LearningTask.query.filter_by(problem_name=problem_name)
+    stopped = 0
+    for learning_task in learning_task.all():
+        task_id = learning_task.task_id
+        celery.task.control.revoke(task_id, terminate=True)
+        train_on_error(task_id)
+        stopped += 1
+    print('{} tasks successfully stopped'.format(stopped))
+    learning_task.delete()
+    app.db.session.flush()
+    app.db.session.commit()
+
+def clear_old_tasks(problem_name, problem_type):
+    learning_task = LearningTask.query.filter_by(problem_name=problem_name,problem_type=problem_type)
+    print('{} tasks successfully deleted'.format(learning_task.count()))
+    learning_task.delete()
+    app.db.session.flush()
+    app.db.session.commit()
+
+def update_gender_cv_partition():
+
+    samples = GenderSample.query \
+        .filter_by(always_test=False,k_fold=None) \
+        .order_by(func.random()).with_entities(GenderSample.id)
+
+    n_samples = samples.count()
+    if n_samples == 0:
+        return
+
+    k_folds = app.config.get('CV_PARTITION_FOLDS')
+
+    # partition number for each fold
+    bins = [int(n_samples / k_folds) for i in range(k_folds)]
+    rest = n_samples - sum(bins)
+    for i in range(rest):
+        bins[i] += 1
+    random.shuffle(bins)
+    for k_fold in range(k_folds):
+        cnt = bins[k_fold]
+        subset = GenderSample.query \
+            .filter_by(always_test=False,k_fold=None) \
+            .order_by(func.random()).with_entities(GenderSample.id) \
+            .limit(cnt).with_entities(GenderSample.id)
+        subset_to_update = GenderSample.query.filter(GenderSample.id.in_(subset))
+        subset_to_update.update(dict(k_fold=k_fold), synchronize_session='fetch')
+
+    app.db.session.commit()
+
+def get_problems():
+    problems = []
+
+    problems.append(get_gender_problem_data())
+    problems.append({'name_id': 'hair_color', 'name': 'Hair color', 'enabled': False})
+    problems.append({'name_id': 'eyes_color', 'name': 'Eyes color', 'enabled': False})
+    problems.append({'name_id': 'race', 'name': 'Race', 'enabled': False})
+
+    return problems
+
+# gender
 def get_gender_problem_data():
     gender_stats = get_gender_stats()
     models_count = get_learned_models_count('gender')
@@ -173,16 +251,6 @@ def get_gender_problem_data():
                            'enabled': True,
                            'tasks': tasks}
     return gender_problem_data
-
-def get_problems():
-    problems = []
-
-    problems.append(get_gender_problem_data())
-    problems.append({'name_id': 'hair_color', 'name': 'Hair color', 'enabled': False})
-    problems.append({'name_id': 'eyes_color', 'name': 'Eyes color', 'enabled': False})
-    problems.append({'name_id': 'race', 'name': 'Race', 'enabled': False})
-
-    return problems
 
 def get_gender_stats():
 
@@ -240,19 +308,6 @@ def gender_problem(request):
            'is_male': is_male, 'ts': int(time.time())}
     return render_template('reannotation_gender.html', ctx=ctx, form=form)
 
-@app.route('/reannotation', defaults={'problem': None}, methods=['GET'])
-@app.route('/reannotation/<string:problem>', methods=['GET'])
-@login_required
-@nocache
-def reannotation(problem):
-    problems = get_problems()
-    ctx = {'ts': int(time.time())}
-    if not problem or problem not in [p['name_id'] for p in problems]:
-        return render_template('reannotation.html', update_url=url_for('reannotation_data'), problems=problems, ctx=ctx)
-    else:
-        if problem == 'gender':
-            return gender_problem(request)
-
 def validate_gender_input_data(is_male, gender_data):
 
     def check_is_int(input_var):
@@ -287,13 +342,26 @@ def validate_gender_input_data(is_male, gender_data):
 
     return out_data
 
-def filter_only_changed(gender_data):
+def gender_filter_only_changed(gender_data):
     out_data = {}
     for sample_id in gender_data:
         gdata = gender_data[sample_id]
         if gdata['is_bad'] or gdata['is_hard'] or gdata['is_changed']:
             out_data[sample_id] = gdata
     return out_data
+
+@app.route('/reannotation', defaults={'problem': None}, methods=['GET'])
+@app.route('/reannotation/<string:problem>', methods=['GET'])
+@login_required
+@nocache
+def reannotation(problem):
+    problems = get_problems()
+    ctx = {'ts': int(time.time())}
+    if not problem or problem not in [p['name_id'] for p in problems]:
+        return render_template('reannotation.html', update_url=url_for('reannotation_data'), problems=problems, ctx=ctx)
+    else:
+        if problem == 'gender':
+            return gender_problem(request)
 
 @app.route('/update_gender_data', methods=['POST'])
 @login_required
@@ -314,7 +382,7 @@ def update_gender_data():
         gender_data = validate_gender_input_data(is_male, gender_data)
         if gender_data is None:
             break
-        filt_gender_data = filter_only_changed(gender_data)
+        filt_gender_data = gender_filter_only_changed(gender_data)
 
         # delete previous annotation for this user and samples
         filt_list_of_ids = [sample_id for sample_id in filt_gender_data]
@@ -363,40 +431,6 @@ def update_gender_data():
         added = accepted - deleted
         # flash('Data successfully updated: added: {}, updated: {}, deleted: {}'.format(added, updated, deleted))
     return redirect(url_for('reannotation', problem='gender'))
-
-@app.route('/lenadrobik')
-@nocache
-def lenadrobik():
-    return render_template('base_temp.html')
-
-def update_gender_cv_partition():
-
-    samples = GenderSample.query \
-        .filter_by(always_test=False,k_fold=None) \
-        .order_by(func.random()).with_entities(GenderSample.id)
-
-    n_samples = samples.count()
-    if n_samples == 0:
-        return
-
-    k_folds = app.config.get('CV_PARTITION_FOLDS')
-
-    # partition number for each fold
-    bins = [int(n_samples / k_folds) for i in range(k_folds)]
-    rest = n_samples - sum(bins)
-    for i in range(rest):
-        bins[i] += 1
-    random.shuffle(bins)
-    for k_fold in range(k_folds):
-        cnt = bins[k_fold]
-        subset = GenderSample.query \
-            .filter_by(always_test=False,k_fold=None) \
-            .order_by(func.random()).with_entities(GenderSample.id) \
-            .limit(cnt).with_entities(GenderSample.id)
-        subset_to_update = GenderSample.query.filter(GenderSample.id.in_(subset))
-        subset_to_update.update(dict(k_fold=k_fold), synchronize_session='fetch')
-
-    app.db.session.commit()
 
 @app.route('/trigger_train/<problem_name>')
 @login_required
@@ -491,50 +525,27 @@ def stop_test(task_id):
                     message='task with id={} successfully stopped'.format(task_id))
     return jsonify(response), 202
 
-def check_working_tasks(problem_name, problem_type):
-    return LearningTask.query.\
-               filter_by(problem_type=problem_type,problem_name=problem_name,finished_ts=None)\
-               .count() > 0
-
-def stop_all_learning_task(problem_name):
-    learning_task = LearningTask.query.filter_by(problem_name=problem_name)
-    stopped = 0
-    for learning_task in learning_task.all():
-        task_id = learning_task.task_id
-        celery.task.control.revoke(task_id, terminate=True)
-        train_on_error(task_id)
-        stopped += 1
-    print('{} tasks successfully stopped'.format(stopped))
-    learning_task.delete()
-    app.db.session.flush()
-    app.db.session.commit()
-
-def clear_old_tasks(problem_name, problem_type):
-    learning_task = LearningTask.query.filter_by(problem_name=problem_name,problem_type=problem_type)
-    print('{} tasks successfully deleted'.format(learning_task.count()))
-    learning_task.delete()
-    app.db.session.flush()
-    app.db.session.commit()
-
-@app.route('/trigger_find_errors/<problem_name>')
+# train k-folds
+@app.route('/trigger_train_k_folds/<problem_name>')
 @login_required
 @nocache
-def trigger_find_errors(problem_name):
+def trigger_train_k_folds(problem_name):
     if problem_name == 'gender':
-        task_id = trigger_find_errors_gender()
-        if task_id is None:
-            return jsonify(status='error', message='failed to start testing'), 400
+        task_ids = trigger_train_k_folds_gender()
+        if task_ids is None:
+            return jsonify(status='error', message='failed to start training k-folds'), 400
     else:
         return jsonify(status='error', message='wrong post parameters'), 400
 
-    return jsonify(status='ok', problems=get_problems(), task_id=task_id, message='testing started.'), 202
+    return jsonify(status='ok', problems=get_problems(), tasks_id=task_ids, message='training started.'), 202
 
-def trigger_find_errors_gender():
-    if check_working_tasks('gender', 'find_errors'):
-        print('attempted to start testing while other task not finished')
+def trigger_train_k_folds_gender():
+    problem_type = 'train_k_folds'
+    if check_working_tasks('gender', problem_type):
+        print('attempted to start training while other task not finished')
         return None
 
-    clear_old_tasks('gender', 'find_errors')
+    clear_old_tasks('gender', problem_type)
 
     k_folds = app.config.get('CV_PARTITION_FOLDS')
 
@@ -542,28 +553,84 @@ def trigger_find_errors_gender():
     for k_fold in range(k_folds):
         task_id = celery.uuid()
         utc = arrow.utcnow()
-        task_db = LearningTask(problem_name='gender',problem_type='find_errors',
+        task_db = LearningTask(problem_name='gender',problem_type=problem_type,
                                task_id=task_id,started_ts=utc,k_fold=k_fold)
         app.db.session.add(task_db)
         app.db.session.flush()
         app.db.session.commit()
 
-        task = run_find_errors.apply_async(('gender', k_fold), task_id=task_id,
-                                           link_error=find_errors_on_error.s(),
-                                           link=find_errors_on_success.s())
+        task = run_train_k_folds.apply_async(('gender', k_fold), task_id=task_id,
+                                           link_error=train_k_folds_on_error.s(),
+                                           link=train_k_folds_on_success.s())
         task_ids.append(task_id)
 
     print('{} tasks successfully started'.format(len(task_ids)))
     return task_ids
 
-@app.route('/stop_find_errors/<string:task_ids_str>', methods=['GET', 'POST'])
+@app.route('/stop_train_k_folds/<string:task_ids_str>', methods=['GET', 'POST'])
 @login_required
-def stop_find_errors(task_ids_str):
+def stop_train_k_folds(task_ids_str):
 
     task_ids = task_ids_str.split(',')
     for task_id in task_ids:
         celery.task.control.revoke(task_id, terminate=True)
-        clear_data_for_find_errors_task(task_id, 'REVOKED', 'Stopped')
+        clear_data_for_train_k_folds_task(task_id, 'REVOKED', 'Stopped')
+
+    print('{} tasks successfully stopped'.format(len(task_ids)))
+    response = dict(status='ok', stopped=True, problems=get_problems(),
+                    message='{} tasks successfully stopped'.format(len(task_ids)))
+    return jsonify(response), 202
+
+# test k-folds
+@app.route('/trigger_test_k_folds/<problem_name>')
+@login_required
+@nocache
+def trigger_test_k_folds(problem_name):
+    if problem_name == 'gender':
+        task_ids = trigger_test_k_folds_gender()
+        if task_ids is None:
+            return jsonify(status='error', message='failed to start training k-folds'), 400
+    else:
+        return jsonify(status='error', message='wrong post parameters'), 400
+
+    return jsonify(status='ok', problems=get_problems(), tasks_id=task_ids, message='training started.'), 202
+
+def trigger_test_k_folds_gender():
+    problem_type = 'test_k_folds'
+    if check_working_tasks('gender', problem_type):
+        print('attempted to start training while other task not finished')
+        return None
+
+    clear_old_tasks('gender', problem_type)
+
+    k_folds = app.config.get('CV_PARTITION_FOLDS')
+
+    task_ids = []
+    for k_fold in range(k_folds):
+        task_id = celery.uuid()
+        utc = arrow.utcnow()
+        task_db = LearningTask(problem_name='gender',problem_type=problem_type,
+                               task_id=task_id,started_ts=utc,k_fold=k_fold)
+        app.db.session.add(task_db)
+        app.db.session.flush()
+        app.db.session.commit()
+
+        task = run_test_k_folds.apply_async(('gender', k_fold), task_id=task_id,
+                                           link_error=test_k_folds_on_error.s(),
+                                           link=test_k_folds_on_success.s())
+        task_ids.append(task_id)
+
+    print('{} tasks successfully started'.format(len(task_ids)))
+    return task_ids
+
+@app.route('/stop_test_k_folds/<string:task_ids_str>', methods=['GET', 'POST'])
+@login_required
+def stop_test_k_folds(task_ids_str):
+
+    task_ids = task_ids_str.split(',')
+    for task_id in task_ids:
+        celery.task.control.revoke(task_id, terminate=True)
+        clear_data_for_test_k_folds_task(task_id, 'REVOKED', 'Stopped')
 
     print('{} tasks successfully stopped'.format(len(task_ids)))
     response = dict(status='ok', stopped=True, problems=get_problems(),

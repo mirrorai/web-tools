@@ -190,9 +190,11 @@ def list_jsons(base_dir):
         out_list.append(f)
     return out_list
 
-def list_subdirs(base_dir):
+def list_subdirs(base_dir, pattern=None):
     subdirs = list()
     for child in os.listdir(base_dir):
+        if pattern is not None and not re.match(pattern, child):
+            continue
         subdir_path = os.path.join(base_dir, child)
         if os.path.isdir(subdir_path):
             subdirs.append(child)

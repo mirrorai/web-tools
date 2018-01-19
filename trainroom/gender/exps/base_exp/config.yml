@@ -8,7 +8,7 @@ CLS_TYPE: 'gender'
 GPU_ID: -1
 TRAIN:
   PRETRAINED: 'resnet-18'
-  EPOCHS: 5
+  EPOCHS: 1
   SNAPSHOT_PERIOD: 99
   BATCH_SIZE: 16
   DISPLAY_ITERS: 3
@@ -44,5 +44,6 @@ VALIDATION:
   BATCH_SIZE: 16
   INTERVAL: 10
 TEST:
+  DEBUG_IMAGES: 'visualization/test_debug'
   BATCH_SIZE: 64
   SHOW_CMAT: True

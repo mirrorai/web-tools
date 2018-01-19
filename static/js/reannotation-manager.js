@@ -87,7 +87,7 @@ var ReannotationManager =  new function() {
         } else if(!task['is_finished']) {
             // process
             btn.removeClass('btn-success').addClass('btn-warning');
-            btn.text('Stop');
+            btn.text(task['label'] + ' stop');
             btn.attr('data-state', 'on');
         } else {
             // finished
@@ -99,12 +99,18 @@ var ReannotationManager =  new function() {
         for(var t = 0; t < task['tasks'].length; t++) {
             var task_data = task['tasks'][t];
             var k_fold  = task_data['k_fold'];
-            var fold_id = k_fold === null ? '' : k_fold
-            var nanobar_container = status_container.find('#' + k_fold + '.progress-nanobar-container');
+            var k_fold  = k_fold == null ? null : k_fold + 1;
+            var fold_id = k_fold === null ? 'main' : k_fold
+            var unique_id = problem_name + '_' + task['problem_type'] + '_' + fold_id;
+
+            var nanobar_container_id = 'nano_container_' + unique_id;
+            var nanobar_container = status_container.find('#' + nanobar_container_id + '.progress-nanobar-container');
+            var nanobar_id = 'nano_' + unique_id;
+
             if(nanobar_container.length == 0) {
                 // create
-                var div_str = '<div id="' + k_fold + '"class="progress-nanobar-container">';
-                div_str += '<div class="progress-nanobar"></div>';
+                var div_str = '<div id="' + nanobar_container_id + '" class="progress-nanobar-container">';
+                div_str += '<div id="' + nanobar_id + '" class="progress-nanobar"></div>';
                 div_str += '<div class="progress-percent"></div>';
                 div_str += '<div class="progress-status"></div>';
                 div_str += '</div>';
@@ -118,13 +124,17 @@ var ReannotationManager =  new function() {
             var progress_percent = nanobar_container.find('.progress-percent');
             var progress_status = nanobar_container.find('.progress-status');
 
+            var prefix_str = '';
+            if(k_fold) {
+                prefix_str = 'K-Fold ' + k_fold + ': ';
+            }
+
             if('finished_ts' in task_data && task_data['finished_ts'] === null) {
                 // show process
                 progress_nanobar.show();
                 progress_percent.show();
                 progress_status.show();
 
-                var nanobar_id = '#' + problem_name + '_' + task['problem_type'] + '_' + fold_id;
                 if(!(nanobar_id in self.nanobars)) {
                     var nanobar = new Nanobar({
                         bg: '#44f',
@@ -138,19 +148,22 @@ var ReannotationManager =  new function() {
                 percent = percent.toFixed(2);
                 nanobar.go(percent);
                 progress_percent.text(percent + '%');
-                progress_status.text(task_data['status']);
 
+                progress_status.text(prefix_str + task_data['status']);
             } else if('finished_ts' in task_data) {
                 // finished
-
                 progress_nanobar.hide();
                 progress_percent.hide();
                 progress_status.show();
 
-                progress_status.text(task_data['status'] + ', finished: ' + task_data['finished_ts']);
+                var suffix = '';
+                if(task_data['state'] === 'SUCCESS') {
+                    suffix = ', finished: ' + task_data['finished_ts'];
+                }
+                suffix = ', finished: ' + task_data['finished_ts'];
+                progress_status.text(prefix_str + task_data['status'] + suffix);
             } else {
                 // not started any task yet
-
                 progress_nanobar.hide();
                 progress_percent.hide();
                 progress_status.hide();
