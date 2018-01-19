@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% set active_page = 'reannotation' %} {# For menu highlight #}
+{% block title %}{{ super() }}Reannotation{% endblock %}
+{% block styles %}
+{{ super() }}
+<link href="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.css') }}"
+  rel="stylesheet">
+<link href="{{ url_for('static', filename='bower_components/bootstrap-select/dist/css/bootstrap-select.min.css') }}"
+  rel="stylesheet">
+<link href="{{ url_for('static', filename='css/reannotation_gender.css') }}?q={{ ctx['ts'] }}"
+  rel="stylesheet">
+<!--suppress CssUnusedSymbol -->
+<style> {# Bigger fonts for graphs #}
+  .mg-x-axis text, .mg-y-axis text, .mg-histogram .axis text, .mg-active-datapoint {
+  font-size: 1.5rem;
+  }
+</style>
+{% endblock %}
+{% block content %}
+{{ super() }}
+
+<main role="main" class="container">
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Trained time</th>
+        {% for metric_name in metrics['metrics_names'] %}
+          <th>{{metric_name}}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    {% for m in metrics['data'] %}
+      <tr>
+        <td class="">{{m['model_id']}}</td>
+        <td class="">{{m['finished_ts']}}</td>
+        {% for val in m['metrics_values'] %}
+          <td>{{val}}</td>
+        {% endfor %}
+      </tr>
+    {% endfor%}
+  </table>
+</main>
+
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/holderjs/holder.min.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='bower_components/bootstrap-select/js/bootstrap-select.js') }}"></script>
+
+<script type="text/javascript"
+  src="{{ url_for('static', filename='js/gender-manager.js') }}?q={{ctx['ts']}}"></script>
+
+<script type="text/javascript">
+  $(document).ready(function() {
+  });
+</script>
+{% endblock %}

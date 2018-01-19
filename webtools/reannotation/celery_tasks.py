@@ -88,6 +88,35 @@ def get_samples(test=False, k_fold=None):
     samples.extend([(s.image.filename(), 1 if s.is_male else 0) for s in samples_ann])
     return samples
 
+def update_gender_cv_partition():
+
+    samples = GenderSample.query \
+        .filter_by(always_test=False,k_fold=None) \
+        .order_by(func.random()).with_entities(GenderSample.id)
+
+    n_samples = samples.count()
+    if n_samples == 0:
+        return
+
+    k_folds = app.config.get('CV_PARTITION_FOLDS')
+
+    # partition number for each fold
+    bins = [int(n_samples / k_folds) for i in range(k_folds)]
+    rest = n_samples - sum(bins)
+    for i in range(rest):
+        bins[i] += 1
+    random.shuffle(bins)
+    for k_fold in range(k_folds):
+        cnt = bins[k_fold]
+        subset = GenderSample.query \
+            .filter_by(always_test=False,k_fold=None) \
+            .order_by(func.random()).with_entities(GenderSample.id) \
+            .limit(cnt).with_entities(GenderSample.id)
+        subset_to_update = GenderSample.query.filter(GenderSample.id.in_(subset))
+        subset_to_update.update(dict(k_fold=k_fold), synchronize_session='fetch')
+
+    app.db.session.commit()
+
 # train
 @app.celery.task(bind=True)
 def run_train(self, taskname):
@@ -146,6 +175,7 @@ def run_gender_train(updater, task_id, k_fold=None):
     model.exp_dir = exp_dir
     model.prefix = snapshot_prefix
     model.epoch = epoch
+    model.finished_ts = arrow.now()
     app.db.session.flush()
     app.db.session.commit()
 
@@ -222,11 +252,13 @@ def run_gender_test(updater, task_id, k_fold=None):
     updater.push_prefix('Model [1] ')
     with add_path(trainroom_gender):
         test_module = __import__('test')
-        pr_probs = test_module.test(updater, snapshot, epoch, samples, exp_dir)
+        metric_data, pr_probs = test_module.test(updater, snapshot, epoch, samples, exp_dir)
         del sys.modules['test']
 
     updater.pop_rescale()
     updater.pop_prefix()
+
+    metric_name, metric_value = metric_data
 
     assert(len(samples) == pr_probs.shape[0])
     for i in range(len(samples)):
@@ -240,7 +272,7 @@ def run_gender_test(updater, task_id, k_fold=None):
     app.db.session.commit()
 
     updater.update_state(state='SUCCESS', progress=1.0,
-                         status='Models successfully tested, {}={:.3f}'.format(metric_name,metric_value))
+                         status='Models successfully tested, {}={:.3f}'.format(metric_name, metric_value))
     updater.finish(arrow.now())
 
 @app.celery.task

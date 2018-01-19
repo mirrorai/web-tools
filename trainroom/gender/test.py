@@ -157,4 +157,4 @@ def test(ctx, snapshot, epoch, samples, exp_dir):
     log_str = 'test results'
     print('{}: {}: {}'.format(log_str, name, value))
 
-    return pr_probs_all
+    return res, pr_probs_all

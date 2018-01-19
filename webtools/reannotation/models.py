@@ -128,6 +128,15 @@ class LearnedModel(db.Model):
     prefix = db.SDColumn(db.String(512), nullable=True)
     epoch = db.SDColumn(db.Integer, nullable=True)
     k_fold = db.SDColumn(db.Integer, nullable=True)
+    finished_ts = db.SDColumn(ArrowType, nullable=True)
+
+class AccuracyMetric(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+    model_id = db.SDColumn(
+        db.Integer,
+        db.ForeignKey('learned_model.id', onupdate='CASCADE', ondelete='CASCADE')
+    )
+    accuracy = db.SDColumn(db.Float)
 
 class GenderSampleResult(db.Model):
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)

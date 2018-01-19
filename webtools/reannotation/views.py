@@ -28,7 +28,7 @@ from webtools.utils import apply_min_max_detections_filters, apply_timing_filter
     parse_min_max_detections_parameters, parse_timing_parameters, preprocess_paged_query, zipdir
 from webtools.wrappers import nocache
 
-from .models import Image, GenderSample, GenderUserAnnotation, LearningTask, LearnedModel
+from .models import Image, GenderSample, GenderUserAnnotation, LearningTask, LearnedModel, AccuracyMetric
 from .forms import GenderDataForm
 from .celery_tasks import dump_task
 from .celery_tasks import run_train, train_on_error, train_on_success, clear_data_for_train_task
@@ -148,7 +148,7 @@ def task_to_ordered_list(resp_map):
     resp_list = sorted(resp_list, key=lambda x: x['order'])
     return resp_list
 
-def task_filter(resp_map, models_count, annotated_count):
+def task_filter(resp_map, models_count, models_k_folds_count, annotated_count):
     if models_count == 0:
         resp_map['test']['start_url'] = '#'
         resp_map['test']['stop_url'] = '#'
@@ -156,6 +156,7 @@ def task_filter(resp_map, models_count, annotated_count):
         resp_map['deploy']['start_url'] = '#'
         resp_map['deploy']['stop_url'] = '#'
 
+    if models_k_folds_count == 0:
         resp_map['test_k_folds']['start_url'] = '#'
         resp_map['test_k_folds']['stop_url'] = '#'
 
@@ -166,10 +167,15 @@ def task_filter(resp_map, models_count, annotated_count):
         resp_map['train_k_folds']['start_url'] = '#'
         resp_map['train_k_folds']['stop_url'] = '#'
 
-def get_learned_models_count(problem_name, k_fold=None):
-    models = LearnedModel.query.filter(and_(LearnedModel.problem_name==problem_name,
-                                            LearnedModel.k_fold==k_fold,
-                                            LearnedModel.prefix!=None))
+def get_learned_models_count(problem_name, k_folds=False):
+    if not k_folds:
+        models = LearnedModel.query.filter(and_(LearnedModel.problem_name==problem_name,
+                                                LearnedModel.k_fold==None,
+                                                LearnedModel.finished_ts!=None))
+    else:
+        models = LearnedModel.query.filter(and_(LearnedModel.problem_name==problem_name,
+                                                LearnedModel.k_fold!=None,
+                                                LearnedModel.finished_ts!=None))
     return models.count()
 
 def check_working_tasks(problem_name, problem_type):
@@ -197,35 +203,6 @@ def clear_old_tasks(problem_name, problem_type):
     app.db.session.flush()
     app.db.session.commit()
 
-def update_gender_cv_partition():
-
-    samples = GenderSample.query \
-        .filter_by(always_test=False,k_fold=None) \
-        .order_by(func.random()).with_entities(GenderSample.id)
-
-    n_samples = samples.count()
-    if n_samples == 0:
-        return
-
-    k_folds = app.config.get('CV_PARTITION_FOLDS')
-
-    # partition number for each fold
-    bins = [int(n_samples / k_folds) for i in range(k_folds)]
-    rest = n_samples - sum(bins)
-    for i in range(rest):
-        bins[i] += 1
-    random.shuffle(bins)
-    for k_fold in range(k_folds):
-        cnt = bins[k_fold]
-        subset = GenderSample.query \
-            .filter_by(always_test=False,k_fold=None) \
-            .order_by(func.random()).with_entities(GenderSample.id) \
-            .limit(cnt).with_entities(GenderSample.id)
-        subset_to_update = GenderSample.query.filter(GenderSample.id.in_(subset))
-        subset_to_update.update(dict(k_fold=k_fold), synchronize_session='fetch')
-
-    app.db.session.commit()
-
 def get_problems():
     problems = []
 
@@ -240,8 +217,9 @@ def get_problems():
 def get_gender_problem_data():
     gender_stats = get_gender_stats()
     models_count = get_learned_models_count('gender')
+    models_k_folds_count = get_learned_models_count('gender', k_folds=True)
     tasks = get_learning_tasks('gender')
-    task_filter(tasks, models_count, gender_stats['total_annotated'])
+    task_filter(tasks, models_count, models_k_folds_count, gender_stats['total_annotated'])
     tasks = task_to_ordered_list(tasks)
 
     gender_problem_data = {'name_id': 'gender',
@@ -275,6 +253,26 @@ def get_gender_stats():
     stats['total_annotated'] = total_annotated
 
     return stats
+
+def get_gender_metrics(problem_name):
+
+    models = app.db.session.query(LearnedModel).\
+        filter(and_(LearnedModel.k_fold==None,
+                    LearnedModel.problem_name==problem_name,
+                    LearnedModel.finished_ts!=None)).\
+        outerjoin(AccuracyMetric).order_by(LearnedModel.id).all()
+
+    metrics_data = {}
+    metrics_data['metrics_names'] = ['Accuracy']
+    metrics_data['data'] = []
+    for m in models:
+        item = {}
+        item['model_id'] = m.id
+        item['finished_ts'] = m.finished_ts
+        item['metrics_values'] = [m.accuracy]
+        metrics_data['data'].append(item)
+
+    return metrics_data
 
 def get_random_gender_samples(base_url):
 
@@ -362,6 +360,17 @@ def reannotation(problem):
     else:
         if problem == 'gender':
             return gender_problem(request)
+
+@app.route('/metrics/<string:problem>', methods=['GET'])
+@login_required
+@nocache
+def metrics(problem):
+    if problem not in ['gender']:
+        abort(404)
+    ctx = {'ts': int(time.time())}
+    if problem == 'gender':
+        metrics = get_gender_metrics(problem)
+    return render_template('metrics.html', metrics=metrics, ctx=ctx)
 
 @app.route('/update_gender_data', methods=['POST'])
 @login_required
