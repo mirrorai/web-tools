@@ -70,8 +70,11 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
     train_iter = ClsIter(collections, cfg, balanced=cfg.TRAIN.BALANCED)
 
     batch_size_train = train_iter.batch_size
-    collections_val = [ImagesCollection(samples_val, cfg)]
-    val_iter = ClsIter(collections_val, cfg, test_cfg=cfg.VALIDATION)
+    if len(samples_val) > 0:
+        collections_val = [ImagesCollection(samples_val, cfg)]
+        val_iter = ClsIter(collections_val, cfg, test_cfg=cfg.VALIDATION)
+    else:
+        val_iter = None
 
     graph_shapes = {}
     graph_shapes['data'] = train_iter.provide_data[0][1]
@@ -119,7 +122,7 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
                   epoch_end_callback = epoch_end_callbacks,
                   num_epoch=epochs_to_train)  # train for at most 10 dataset passes
 
-    ctx.update_state(state='PROGRESS', progress=1.0, status='saving model...')
+    ctx.update_state(state='PROGRESS', progress=1.0, status='Saving model...')
 
     prefix = snapshots_dir + '/model'
     model.save_checkpoint(prefix, epochs_to_train)

@@ -28,11 +28,12 @@ from webtools.utils import apply_min_max_detections_filters, apply_timing_filter
     parse_min_max_detections_parameters, parse_timing_parameters, preprocess_paged_query, zipdir
 from webtools.wrappers import nocache
 
-from .models import Image, GenderSample, GenderUserAnnotation, LearningTask
+from .models import Image, GenderSample, GenderUserAnnotation, LearningTask, LearnedModel
 from .forms import GenderDataForm
 from .celery_tasks import dump_task
 from .celery_tasks import run_train, train_on_error, train_on_success, clear_data_for_train_task
 from .celery_tasks import run_test, test_on_error, test_on_success, clear_data_for_test_task
+from .celery_tasks import run_find_errors, find_errors_on_error, find_errors_on_success, clear_data_for_find_errors_task
 import celery
 
 # Shortcuts
@@ -44,6 +45,8 @@ def get_trigger_url_for(problem_name, problem_type):
         return url_for('trigger_train', problem_name=problem_name)
     elif problem_type == 'test':
         return url_for('trigger_test', problem_name=problem_name)
+    elif problem_type == 'find_errors':
+        return url_for('trigger_find_errors', problem_name=problem_name)
     else:
         return '#'
 
@@ -53,6 +56,8 @@ def get_stop_url_for(problem_type, task_id):
         return url_for('stop_train', task_id=task_id)
     elif problem_type == 'test':
         return url_for('stop_test', task_id=task_id)
+    elif problem_type == 'find_errors':
+        return url_for('stop_find_errors', task_ids_str=task_id)
     else:
         return '#'
 
@@ -79,17 +84,36 @@ def get_learning_tasks(problem_name):
     order_map = get_problem_types_order()
     resp_map = {}
     for db_task in learning_task:
+
+        problem_type = db_task.problem_type
+
         item = {}
         item['progress'] = db_task.progress
         item['state'] = db_task.state
         item['status'] = db_task.status
         item['started_ts'] = db_task.started_ts
         item['finished_ts'] = db_task.finished_ts
-        item['start_url'] = get_trigger_url_for(problem_name, db_task.problem_type)
-        item['stop_url'] = get_stop_url_for(db_task.problem_type, db_task.task_id)
-        item['label'] = labels_map[db_task.problem_type]
-        item['order'] = order_map[db_task.problem_type]
-        resp_map[db_task.problem_type] = item
+        item['task_id'] = db_task.task_id
+        item['k_fold'] = db_task.k_fold
+
+        if problem_type not in resp_map:
+            problem_type_item = {}
+            problem_type_item['start_url'] = get_trigger_url_for(problem_name, problem_type)
+            problem_type_item['stop_url'] = get_stop_url_for(problem_type, db_task.task_id)
+            problem_type_item['label'] = labels_map[problem_type]
+            problem_type_item['order'] = order_map[problem_type]
+            problem_type_item['is_finished'] = item['finished_ts'] != None
+            problem_type_item['tasks'] = []
+            resp_map[problem_type] = problem_type_item
+
+        resp_map[problem_type]['is_finished'] = resp_map[problem_type]['is_finished'] and item['finished_ts'] != None
+        resp_map[problem_type]['tasks'].append(item)
+
+    for problem_type in resp_map:
+        if len(resp_map[problem_type]['tasks']) > 1:
+            task_ids = ','.join([item['task_id'] for item in resp_map[problem_type]['tasks']])
+            resp_map[problem_type]['stop_url'] = get_stop_url_for(problem_type, task_ids)
+            resp_map[problem_type]['tasks'] = sorted(resp_map[problem_type]['tasks'],key=lambda x: x['k_fold'])
 
     problem_types_all = ['train', 'test', 'find_errors', 'deploy']
     for problem_type in problem_types_all:
@@ -99,18 +123,48 @@ def get_learning_tasks(problem_name):
             item['stop_url'] = '#'
             item['label'] = labels_map[problem_type]
             item['order'] = order_map[problem_type]
+            item['is_finished'] = False
+            item['tasks'] = []
             resp_map[problem_type] = item
+
+    return resp_map
+
+def task_to_ordered_list(resp_map):
     resp_list = []
     for problem_type in resp_map:
-        item = resp_map[problem_type]
-        item['problem_type'] = problem_type
-        resp_list.append(item)
-    resp_list = sorted(resp_list, key = lambda x: x['order'])
+        problem_type_item = resp_map[problem_type]
+        problem_type_item['problem_type'] = problem_type
+        resp_list.append(problem_type_item)
+    resp_list = sorted(resp_list, key=lambda x: x['order'])
     return resp_list
+
+def task_filter(resp_map, models_count, annotated_count):
+    if models_count == 0:
+        resp_map['test']['start_url'] = '#'
+        resp_map['test']['stop_url'] = '#'
+
+        resp_map['deploy']['start_url'] = '#'
+        resp_map['deploy']['stop_url'] = '#'
+
+    if annotated_count == 0:
+        resp_map['train']['start_url'] = '#'
+        resp_map['train']['stop_url'] = '#'
+
+        resp_map['find_errors']['start_url'] = '#'
+        resp_map['find_errors']['stop_url'] = '#'
+
+def get_learned_models_count(problem_name):
+    models = LearnedModel.query.filter(and_(LearnedModel.problem_name==problem_name,
+                                            LearnedModel.k_fold==None,
+                                            LearnedModel.prefix!=None))
+    return models.count()
 
 def get_gender_problem_data():
     gender_stats = get_gender_stats()
+    models_count = get_learned_models_count('gender')
     tasks = get_learning_tasks('gender')
+    task_filter(tasks, models_count, gender_stats['total_annotated'])
+    tasks = task_to_ordered_list(tasks)
 
     gender_problem_data = {'name_id': 'gender',
                            'name': 'Gender',
@@ -137,15 +191,10 @@ def get_gender_stats():
     total_checked = GenderSample.query.filter_by(is_checked=True).count()
     user_checked = GenderUserAnnotation.query.filter_by(user_id=current_user.id).count()
 
-    # total_reannotated = GenderUserAnnotation.query.filter(or_(GenderUserAnnotation.is_changed==True,
-    #                                                               GenderUserAnnotation.is_bad==True,
-    #                                                               GenderUserAnnotation.is_hard==True)).count()
-    # user_reannotated = GenderUserAnnotation.query.filter(and_(GenderUserAnnotation.user_id==current_user.id,
-    #                                                            or_(GenderUserAnnotation.is_changed==True,
-    #                                                                GenderUserAnnotation.is_bad==True,
-    #                                                                GenderUserAnnotation.is_hard==True))).count()
+    total_annotated = app.db.session.query(GenderSample).outerjoin(GenderUserAnnotation).\
+                        filter(or_(GenderUserAnnotation.id != None, GenderSample.is_annotated_gt)).count()
 
-    total_reannotated = 0
+    total_reannotated = app.db.session.query(GenderUserAnnotation).count()
     user_reannotated = 0
 
     stats = {}
@@ -153,8 +202,9 @@ def get_gender_stats():
     stats['to_check'] = total - total_checked
     stats['total_checked'] = total_checked
     stats['user_checked'] = user_checked
-    stats['total_reannotated'] = user_reannotated
-    stats['user_reannotated'] = total_reannotated
+    stats['total_reannotated'] = total_reannotated
+    stats['user_reannotated'] = user_reannotated
+    stats['total_annotated'] = total_annotated
 
     return stats
 
@@ -222,9 +272,11 @@ def validate_gender_input_data(is_male, gender_data):
         if 'is_changed' not in data_item or not check_is_int(data_item['is_changed']):
             return None
         args = {}
+        args['is_changed'] = data_item['is_changed']
         args['is_male'] = (is_male and (data_item['is_changed'] == 0))
         args['is_male'] = args['is_male'] or ((not is_male) and (data_item['is_changed'] != 0))
-        # args['is_changed'] = data_item['is_changed'] != 0
+        args['is_hard'] = False
+        args['is_bad'] = False
 
         if 'is_hard' in data_item and check_is_int(data_item['is_hard']):
             args['is_hard'] = data_item['is_hard'] != 0
@@ -233,6 +285,14 @@ def validate_gender_input_data(is_male, gender_data):
 
         out_data[sample_id_int] = args
 
+    return out_data
+
+def filter_only_changed(gender_data):
+    out_data = {}
+    for sample_id in gender_data:
+        gdata = gender_data[sample_id]
+        if gdata['is_bad'] or gdata['is_hard'] or gdata['is_changed']:
+            out_data[sample_id] = gdata
     return out_data
 
 @app.route('/update_gender_data', methods=['POST'])
@@ -254,11 +314,13 @@ def update_gender_data():
         gender_data = validate_gender_input_data(is_male, gender_data)
         if gender_data is None:
             break
+        filt_gender_data = filter_only_changed(gender_data)
 
         # delete previous annotation for this user and samples
+        filt_list_of_ids = [sample_id for sample_id in filt_gender_data]
         list_of_ids = [sample_id for sample_id in gender_data]
         deleted = GenderUserAnnotation.query.\
-            filter(and_(GenderUserAnnotation.sample_id.in_(list_of_ids),
+            filter(and_(GenderUserAnnotation.sample_id.in_(filt_list_of_ids),
                         GenderUserAnnotation.user_id==user_id)).delete(synchronize_session='fetch')
 
         # check that all samples ids is valid
@@ -268,11 +330,17 @@ def update_gender_data():
         gender_samples.update(dict(is_checked=True), synchronize_session='fetch')
 
         accepted = 0
-        for sample_id in gender_data:
-            args = gender_data[sample_id]
+        for sample_id in filt_gender_data:
+            gdata = gender_data[sample_id]
+
+            args = {}
+            args['is_hard'] = gdata['is_hard']
+            args['is_bad'] = gdata['is_bad']
+            args['is_male'] = gdata['is_male']
             args['user_id']=user_id
             args['sample_id']=sample_id
             args['mark_timestamp']=utc
+
             # create instance
             user_gender_ann = GenderUserAnnotation(**args)
 
@@ -344,7 +412,8 @@ def trigger_train(problem_name):
     return jsonify(status='ok', problems=get_problems(), task_id=task_id, message='training started.'), 202
 
 def trigger_train_gender():
-    if check_working_tasks('gender'):
+
+    if check_working_tasks('gender', 'train'):
         print('attempted to start training while other task not finished')
         return None
 
@@ -388,8 +457,12 @@ def trigger_test(problem_name):
     return jsonify(status='ok', problems=get_problems(), task_id=task_id, message='testing started.'), 202
 
 def trigger_test_gender():
-    if check_working_tasks('gender'):
+    if check_working_tasks('gender', 'test'):
         print('attempted to start testing while other task not finished')
+        return None
+
+    if get_learned_models_count('gender') == 0:
+        print('no models for testing')
         return None
 
     clear_old_tasks('gender', 'test')
@@ -418,8 +491,10 @@ def stop_test(task_id):
                     message='task with id={} successfully stopped'.format(task_id))
     return jsonify(response), 202
 
-def check_working_tasks(problem_name):
-    return LearningTask.query.filter_by(problem_name=problem_name,finished_ts=None).count() > 0
+def check_working_tasks(problem_name, problem_type):
+    return LearningTask.query.\
+               filter_by(problem_type=problem_type,problem_name=problem_name,finished_ts=None)\
+               .count() > 0
 
 def stop_all_learning_task(problem_name):
     learning_task = LearningTask.query.filter_by(problem_name=problem_name)
@@ -440,6 +515,60 @@ def clear_old_tasks(problem_name, problem_type):
     learning_task.delete()
     app.db.session.flush()
     app.db.session.commit()
+
+@app.route('/trigger_find_errors/<problem_name>')
+@login_required
+@nocache
+def trigger_find_errors(problem_name):
+    if problem_name == 'gender':
+        task_id = trigger_find_errors_gender()
+        if task_id is None:
+            return jsonify(status='error', message='failed to start testing'), 400
+    else:
+        return jsonify(status='error', message='wrong post parameters'), 400
+
+    return jsonify(status='ok', problems=get_problems(), task_id=task_id, message='testing started.'), 202
+
+def trigger_find_errors_gender():
+    if check_working_tasks('gender', 'find_errors'):
+        print('attempted to start testing while other task not finished')
+        return None
+
+    clear_old_tasks('gender', 'find_errors')
+
+    k_folds = app.config.get('CV_PARTITION_FOLDS')
+
+    task_ids = []
+    for k_fold in range(k_folds):
+        task_id = celery.uuid()
+        utc = arrow.utcnow()
+        task_db = LearningTask(problem_name='gender',problem_type='find_errors',
+                               task_id=task_id,started_ts=utc,k_fold=k_fold)
+        app.db.session.add(task_db)
+        app.db.session.flush()
+        app.db.session.commit()
+
+        task = run_find_errors.apply_async(('gender', k_fold), task_id=task_id,
+                                           link_error=find_errors_on_error.s(),
+                                           link=find_errors_on_success.s())
+        task_ids.append(task_id)
+
+    print('{} tasks successfully started'.format(len(task_ids)))
+    return task_ids
+
+@app.route('/stop_find_errors/<string:task_ids_str>', methods=['GET', 'POST'])
+@login_required
+def stop_find_errors(task_ids_str):
+
+    task_ids = task_ids_str.split(',')
+    for task_id in task_ids:
+        celery.task.control.revoke(task_id, terminate=True)
+        clear_data_for_find_errors_task(task_id, 'REVOKED', 'Stopped')
+
+    print('{} tasks successfully stopped'.format(len(task_ids)))
+    response = dict(status='ok', stopped=True, problems=get_problems(),
+                    message='{} tasks successfully stopped'.format(len(task_ids)))
+    return jsonify(response), 202
 
 @app.route('/image/<int:id>', defaults={'minside': 0, 'maxside': 0}, methods=['GET'])
 @app.route('/image/<int:id>/<int:minside>', defaults={'maxside': 0}, methods=['GET'])

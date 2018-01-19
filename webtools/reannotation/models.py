@@ -77,9 +77,10 @@ class LearningTask(db.Model):
     problem_name = db.SDColumn(db.String(128))
     problem_type = db.SDColumn(db.String(64))
     task_id = db.SDColumn(db.String(64))
+    k_fold = db.SDColumn(db.Integer, nullable=True)
 
     __table_args__ = (
-        db.UniqueConstraint('problem_name', 'problem_type'),
+        db.UniqueConstraint('problem_name', 'problem_type', 'k_fold'),
     )
 
     # 'PENDING' 'SUCCESS' 'PROGRESS', 'REVOKED', 'FAILED'
