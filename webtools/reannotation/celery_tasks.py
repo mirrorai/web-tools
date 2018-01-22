@@ -6,9 +6,10 @@ import random
 from os.path import join, isdir
 from os import mkdir, makedirs
 from sqlalchemy import func, or_, and_, desc, not_
-from models import GenderSample, LearningTask, LearnedModel, GenderUserAnnotation, GenderSampleResult
+from models import GenderSample, LearningTask, LearnedModel, AccuracyMetric, GenderUserAnnotation, GenderSampleResult
 from shutil import copyfile
 from ..utils import add_path
+from sqlalchemy.sql.expression import case
 import sys
 import arrow
 
@@ -38,7 +39,7 @@ class StatusUpdater:
     def __rescaled_progress(self, progress):
         progress_n = progress
         for shift, scale in self.rescales[::-1]:
-            progress_n = (progress_n + shift) * scale
+            progress_n = progress_n * scale + shift
         return progress_n
 
     def __prefix_status(self, status):
@@ -68,35 +69,126 @@ def dump_task(self):
     return {'current': 100, 'total': 100, 'status': 'Task completed.',
             'result': 0}
 
-def get_samples(test=False, k_fold=None):
-    samples_gt = app.db.session.query(GenderSample). \
-        filter(and_(GenderSample.is_hard==False,
-                    GenderSample.is_bad==False,
-                    GenderSample.is_annotated_gt,
-                    GenderSample.always_test==test)). \
-        outerjoin(GenderUserAnnotation). \
-        filter(GenderUserAnnotation.id == None).order_by(func.random()).limit(1000).all()
+def get_test_samples(for_model_id, k_fold=None):
 
-    samples_ann = app.db.session.query(GenderSample). \
-        filter(GenderSample.always_test==test). \
-        join(GenderUserAnnotation). \
-        filter(and_(GenderUserAnnotation.is_hard==False,
-                    GenderUserAnnotation.is_bad==False)). \
-        order_by(func.random()).limit(1000).all()
+    subq = app.db.session.query(GenderSampleResult).\
+        filter(GenderSampleResult.model_id == for_model_id).subquery('t')
 
-    samples = [(s.image.filename(), 1 if s.is_male else 0) for s in samples_gt]
-    samples.extend([(s.image.filename(), 1 if s.is_male else 0) for s in samples_ann])
+    if k_fold is not None:
+        # (sample_id, is_male (picked from annotation or gt), prob female, prob male)
+        res = app.db.session.query(GenderSample,
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                        else_=GenderUserAnnotation.is_male)). \
+            filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+                        GenderSample.is_bad == False,
+                        GenderSample.k_fold != None,
+                        GenderSample.k_fold == k_fold)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(or_(and_(GenderUserAnnotation.id == None,
+                            GenderSample.is_annotated_gt),
+                       and_(GenderUserAnnotation.id != None,
+                            GenderUserAnnotation.is_hard == False,
+                            GenderUserAnnotation.is_bad == False))). \
+            outerjoin(subq). \
+            filter(subq.c.id == None).all()
+    else:
+        # (sample_id, is_male (picked from annotation or gt), prob female, prob male)
+        res = app.db.session.query(GenderSample,
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                        else_=GenderUserAnnotation.is_male)). \
+            filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+                        GenderSample.is_bad == False,
+                        GenderSample.always_test == True)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(or_(and_(GenderUserAnnotation.id == None,
+                            GenderSample.is_annotated_gt),
+                       and_(GenderUserAnnotation.id != None,
+                            GenderUserAnnotation.is_hard == False,
+                            GenderUserAnnotation.is_bad == False))).\
+            outerjoin(subq).\
+            filter(subq.c.id==None).all()
+
+    samples = [(s.GenderSample.image.filename(), 1 if s[1] else 0, s.GenderSample.id) for s in res]
+
+    # app.db.session.query(GenderSampleResult, GenderSample, GenderUserAnnotation).\
+    #     filter(GenderSampleResult.model_id==for_model_id).\
+    #     outerjoin(GenderSample). \
+    #     filter(and_(GenderSample.is_hard == False,
+    #                 GenderSample.is_bad == False,
+    #                 GenderSample.is_annotated_gt,
+    #                 GenderSample.always_test == True)). \
+    #     outerjoin(GenderUserAnnotation). \
+    #     filter(GenderUserAnnotation.id == None). \
+    #     order_by(func.random()).all()
+    #
+    # samples_gt = app.db.session.query(GenderSample). \
+    #     filter(and_(GenderSample.is_hard == False,
+    #                 GenderSample.is_bad == False,
+    #                 GenderSample.is_annotated_gt,
+    #                 GenderSample.always_test == True)). \
+    #     outerjoin(GenderUserAnnotation). \
+    #     filter(GenderUserAnnotation.id == None). \
+    #     outerjoin(GenderSampleResult). \
+    #     filter(or_(GenderSampleResult.model_id != for_model_id,
+    #                GenderSampleResult.id == None)). \
+    #     order_by(func.random()).all()
+    #
+    # samples_ann = app.db.session.query(GenderSample, GenderUserAnnotation). \
+    #     filter(GenderSample.always_test == True). \
+    #     join(GenderUserAnnotation). \
+    #     filter(and_(GenderUserAnnotation.is_hard == False,
+    #                 GenderUserAnnotation.is_bad == False)). \
+    #     outerjoin(GenderSampleResult). \
+    #     filter(or_(GenderSampleResult.model_id != for_model_id,
+    #                 GenderSampleResult.id == None)). \
+    #     order_by(func.random()).all()
+
+    # samples = [(s.image.filename(), 1 if s.is_male else 0, s.id) for s in samples_gt]
+    # samples.extend([(s.image.filename(), 1 if s.GenderUserAnnotation.is_male else 0, s.id) for s in samples_ann])
+
+    return samples
+
+def get_train_samples(k_fold=None):
+
+    if k_fold is not None:
+        # (sample, is_male (picked from annotation or gt))
+        res = app.db.session.query(GenderSample,
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                        else_=GenderUserAnnotation.is_male)). \
+            filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+                        GenderSample.is_bad == False,
+                        GenderSample.always_test == False,
+                        GenderSample.k_fold != None,
+                        GenderSample.k_fold != k_fold)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(or_(and_(GenderUserAnnotation.id == None,
+                            GenderSample.is_annotated_gt),
+                       and_(GenderUserAnnotation.id != None,
+                            GenderUserAnnotation.is_hard == False,
+                            GenderUserAnnotation.is_bad == False))).all()
+    else:
+        # (sample, is_male (picked from annotation or gt))
+        res = app.db.session.query(GenderSample,
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                        else_=GenderUserAnnotation.is_male)). \
+            filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+                        GenderSample.is_bad == False,
+                        GenderSample.always_test == False)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(or_(and_(GenderUserAnnotation.id == None,
+                            GenderSample.is_annotated_gt),
+                       and_(GenderUserAnnotation.id != None,
+                            GenderUserAnnotation.is_hard == False,
+                            GenderUserAnnotation.is_bad == False))).all()
+
+    samples = [(s.GenderSample.image.filename(), 1 if s[1] else 0, s.GenderSample.id) for s in res]
+
     return samples
 
 def update_gender_cv_partition():
 
-    samples = GenderSample.query \
-        .filter_by(always_test=False,k_fold=None) \
-        .order_by(func.random()).with_entities(GenderSample.id)
-
-    n_samples = samples.count()
-    if n_samples == 0:
-        return
+    n_samples = GenderSample.query \
+        .filter_by(always_test=False,k_fold=None).count()
 
     k_folds = app.config.get('CV_PARTITION_FOLDS')
 
@@ -110,10 +202,11 @@ def update_gender_cv_partition():
         cnt = bins[k_fold]
         subset = GenderSample.query \
             .filter_by(always_test=False,k_fold=None) \
-            .order_by(func.random()).with_entities(GenderSample.id) \
+            .order_by(func.random())\
             .limit(cnt).with_entities(GenderSample.id)
         subset_to_update = GenderSample.query.filter(GenderSample.id.in_(subset))
         subset_to_update.update(dict(k_fold=k_fold), synchronize_session='fetch')
+        app.db.session.flush()
 
     app.db.session.commit()
 
@@ -123,6 +216,8 @@ def run_train(self, taskname):
     if taskname == 'gender':
         updater = StatusUpdater(self.request.id)
         run_gender_train(updater, self.request.id)
+        updater.update_state(state='SUCCESS', progress=1.0, status='Model successfully trained')
+        updater.finish(arrow.now())
         return dump_result()
     else:
         print('uknown taskname: {}'.format(taskname))
@@ -132,7 +227,7 @@ def run_gender_train(updater, task_id, k_fold=None):
 
     updater.update_state(state='PROGRESS', progress=0.005, status='Preparing samples for training..')
 
-    samples = get_samples()
+    samples = get_train_samples(k_fold=k_fold)
     print('number of samples: {}'.format(len(samples)))
 
     if len(samples) == 0:
@@ -153,16 +248,16 @@ def run_gender_train(updater, task_id, k_fold=None):
     trainroom_gender = join(trainroom_dir, 'gender')
 
     # prepare experiment directory
-    exp_fold = 'fold{}'.format(k_fold) if k_fold else 'main'
+    exp_fold = 'fold{}'.format(k_fold) if k_fold is not None else 'main'
     exp_dir = join(trainroom_gender, 'exps', 'exp{}_{}'.format(exp_num, exp_fold))
     exp_base = join(trainroom_gender, 'exps', 'base_exp')
 
     # copy scripts for training
     if not isdir(exp_dir):
         makedirs(exp_dir)
-        copyfile(join(exp_base, 'config.yml'), join(exp_dir, 'config.yml'))
-        copyfile(join(exp_base, 'get_model.py'), join(exp_dir, 'get_model.py'))
-        copyfile(join(exp_base, 'get_optimizer_params.py'), join(exp_dir, 'get_optimizer_params.py'))
+    copyfile(join(exp_base, 'config.yml'), join(exp_dir, 'config.yml'))
+    copyfile(join(exp_base, 'get_model.py'), join(exp_dir, 'get_model.py'))
+    copyfile(join(exp_base, 'get_optimizer_params.py'), join(exp_dir, 'get_optimizer_params.py'))
 
     # run training
     with add_path(trainroom_gender):
@@ -175,13 +270,13 @@ def run_gender_train(updater, task_id, k_fold=None):
     model.exp_dir = exp_dir
     model.prefix = snapshot_prefix
     model.epoch = epoch
+    if k_fold is not None:
+        model.k_fold = k_fold
     model.finished_ts = arrow.now()
     app.db.session.flush()
     app.db.session.commit()
 
     updater.pop_rescale()
-    updater.update_state(state='SUCCESS', progress=1.0, status='Model successfully trained')
-    updater.finish(arrow.now())
 
     return model.id
 
@@ -210,34 +305,122 @@ def clear_data_for_train_task(uuid, state, status):
     app.db.session.commit()
 
 # test
+def compute_gender_metrics(gender_model, update_state=True):
+
+    # (sample_id, is_male (picked from annotation or gt), prob female, prob male)
+    res = app.db.session.query(GenderSample.id,
+                               case([(GenderUserAnnotation.id==None, GenderSample.is_male)],
+                                    else_=GenderUserAnnotation.is_male),
+                               GenderSampleResult.prob_neg,
+                               GenderSampleResult.prob_pos).\
+        filter(and_(GenderSample.is_hard == False, # no bad or hard samples
+                    GenderSample.is_bad == False)).\
+        outerjoin(GenderUserAnnotation). \
+        filter(or_(GenderUserAnnotation.id==None, # if sample has annotation, check it is not marked as hard or bad
+                   and_(GenderUserAnnotation.is_hard == False,
+                        GenderUserAnnotation.is_bad == False))).\
+        outerjoin(GenderSampleResult).\
+        filter(and_(GenderSampleResult.id!=None,
+                    GenderSampleResult.model_id==gender_model.id)).all()
+
+    n_correct = 0
+    n_samples = 0
+    for id, is_male, prob_neg, prob_pos in res:
+
+        if prob_pos > prob_neg:
+            n_correct += 1 if is_male else 0
+        else:
+            n_correct += 1 if not is_male else 0
+        n_samples += 1
+
+    metric_value = 0.0
+    if n_samples > 0:
+        metric_value = float(n_correct) / n_samples
+
+    metric_name = 'accuracy'
+
+    if update_state:
+        metric = AccuracyMetric.query.filter_by(model_id=gender_model.id)
+        if metric.count() > 0:
+            metric.update(dict(accuracy=metric_value))
+        else:
+            metric = AccuracyMetric(model_id=gender_model.id,
+                                    accuracy=metric_value)
+            app.db.session.add(metric)
+
+        app.db.session.flush()
+        app.db.session.commit()
+
+    return metric_name, metric_value
+
+def compute_errors_metrics(gender_model):
+
+    # (sample_id, is_male (picked from annotation or gt), prob female, prob male)
+    ann = app.db.session.query(GenderSample.id,
+                               case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                    else_=GenderUserAnnotation.is_male),
+                               GenderSampleResult.prob_neg,
+                               GenderSampleResult.prob_pos). \
+        filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+                    GenderSample.is_bad == False)). \
+        outerjoin(GenderUserAnnotation). \
+        filter(or_(GenderUserAnnotation.id == None,  # if sample has annotation, check it is not marked as hard or bad
+                   and_(GenderUserAnnotation.is_hard == False,
+                        GenderUserAnnotation.is_bad == False))). \
+        outerjoin(GenderSampleResult). \
+        filter(and_(GenderSampleResult.id != None,
+                    GenderSampleResult.model_id == gender_model.id)).all()
+
 @app.celery.task(bind=True)
 def run_test(self, taskname):
     if taskname == 'gender':
         updater = StatusUpdater(self.request.id)
-        run_gender_test(updater, self.request.id)
+
+        gender_models = LearnedModel.query.\
+            filter(and_(LearnedModel.problem_name=='gender',
+                        LearnedModel.k_fold==None,
+                        LearnedModel.prefix!=None)). \
+            order_by(LearnedModel.id).all()
+
+        num_models = len(gender_models)
+
+        if num_models == 0:
+            updater.update_state(state='FAILURE', progress=1.0, status='No models to test')
+            updater.finish(arrow.now())
+            return dump_result()
+
+        for idx, gender_model in enumerate(gender_models):
+            scale = 1.0 / num_models
+            shift = idx * scale
+            updater.push_rescale(shift, scale)
+            updater.push_prefix('Model [{}/{}] '.format(idx + 1, num_models))
+
+            run_gender_test(updater, gender_model)
+
+            updater.update_state(state='PROGRESS', progress=1.0,
+                                 status='Computing metrics..')
+            metric_name, metric_value = compute_gender_metrics(gender_model)
+
+            updater.update_state(state='SUCCESS', progress=1.0,
+                                 status='Successfully tested, {}={:.3f}'.format(metric_name, metric_value))
+
+            updater.pop_prefix()
+            updater.pop_rescale()
+
+        updater.finish(arrow.now())
         return dump_result()
     else:
         print('uknown taskname: {}'.format(taskname))
         return dump_result()
 
-def run_gender_test(updater, task_id, k_fold=None):
+def run_gender_test(updater, gender_model):
 
-    updater.update_state(state='PROGRESS', progress=0.005, status='Preparing samples for testing..')
-    samples = get_samples(test=True)
+    updater.update_state(state='PROGRESS', progress=0.01, status='Preparing samples for testing..')
+    samples = get_test_samples(gender_model.id, k_fold=gender_model.k_fold)
+    print('number of samples: {}'.format(len(samples)))
 
     if len(samples) == 0:
-        updater.update_state(state='FAILURE', progress=1.0, status='No samples to test')
-        updater.finish(arrow.now())
-        return None
-
-    updater.update_state(state='PROGRESS', progress=0.01, status='Preparing models for testing..')
-    gender_model = LearnedModel.query.\
-        filter(and_(LearnedModel.problem_name=='gender',LearnedModel.prefix!=None)). \
-        order_by(desc(LearnedModel.id)).first()
-
-    if not gender_model:
-        updater.update_state(state='FAILURE', progress=1.0, status='No models to test')
-        updater.finish(arrow.now())
+        updater.update_state(state='PROGRESS', progress=1.0, status='No samples to test')
         return None
 
     # run training
@@ -249,31 +432,26 @@ def run_gender_test(updater, task_id, k_fold=None):
     exp_dir = str(gender_model.exp_dir)
 
     updater.push_rescale(0.01, 0.99)
-    updater.push_prefix('Model [1] ')
     with add_path(trainroom_gender):
         test_module = __import__('test')
         metric_data, pr_probs = test_module.test(updater, snapshot, epoch, samples, exp_dir)
         del sys.modules['test']
 
     updater.pop_rescale()
-    updater.pop_prefix()
 
-    metric_name, metric_value = metric_data
+    updater.update_state(state='PROGRESS', progress=1.0,
+                         status='Storing results..')
 
     assert(len(samples) == pr_probs.shape[0])
     for i in range(len(samples)):
         pr_prob = pr_probs[i,:]
         prob_neg = pr_prob[0]
         prob_pos = pr_prob[1]
-        result_sample = GenderSampleResult(model_id=gender_model.id, prob_neg=prob_neg, prob_pos=prob_pos)
+        sample_id = samples[i][2]
+        result_sample = GenderSampleResult(sample_id=sample_id,
+                                           model_id=gender_model.id, prob_neg=prob_neg, prob_pos=prob_pos)
         app.db.session.add(result_sample)
         app.db.session.flush()
-
-    app.db.session.commit()
-
-    updater.update_state(state='SUCCESS', progress=1.0,
-                         status='Models successfully tested, {}={:.3f}'.format(metric_name, metric_value))
-    updater.finish(arrow.now())
 
 @app.celery.task
 def test_on_error(uuid):
@@ -299,18 +477,10 @@ def clear_data_for_test_task(uuid, state, status):
 def run_train_k_folds(self, taskname, k_fold):
     if taskname == 'gender':
         updater = StatusUpdater(self.request.id)
-        updater.push_rescale(0.0, 0.9)
-
-        model_id = run_gender_train(updater, self.request.id, k_fold=k_fold)
-
-        updater.pop_rescale()
-
-        updater.push_rescale(0.9, 0.1)
-
-        run_gender_test(updater, self.request.id, model_id=model_id)
-
-        updater.pop_rescale()
-
+        update_gender_cv_partition()
+        run_gender_train(updater, self.request.id, k_fold=k_fold)
+        updater.update_state(state='SUCCESS', progress=1.0, status='Model successfully trained')
+        updater.finish(arrow.now())
         return dump_result()
     else:
         print('uknown taskname: {}'.format(taskname))
@@ -345,7 +515,18 @@ def clear_data_for_train_k_folds_task(uuid, state, status):
 def run_test_k_folds(self, taskname, k_fold):
     if taskname == 'gender':
         updater = StatusUpdater(self.request.id)
-        run_gender_test(updater, self.request.id, k_fold=k_fold)
+        update_gender_cv_partition()
+
+        gender_model = LearnedModel.query.filter_by(k_fold=k_fold, problem_name='gender').\
+            order_by(desc(LearnedModel.id)).first()
+
+        run_gender_test(updater, gender_model)
+
+        metric_name, metric_value = compute_gender_metrics(gender_model, update_state=False)
+        updater.update_state(state='SUCCESS', progress=1.0,
+                             status='Successfully tested, {}={:.3f}'.format(metric_name, metric_value))
+        updater.finish(arrow.now())
+
         return dump_result()
     else:
         print('uknown taskname: {}'.format(taskname))

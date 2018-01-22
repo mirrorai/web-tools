@@ -69,9 +69,9 @@ class Config(object):
     # CELERY_BROKER_URL = 'amqp://{}:{}@localhost/{}'.format(RABBITMQ_NAME, RABBITMQ_PASS, RABBITMQ_VHOST)
     # CELERY_RESULT_BACKEND = 'amqp://{}:{}@localhost/{}'.format(RABBITMQ_NAME, RABBITMQ_PASS, RABBITMQ_VHOST)
 
-    CELERY_BROKER_URL = 'amqp://127.0.0.1'
+    CELERY_BROKER_URL = 'amqp://guest@localhost//'
     # CELERY_BACKEND_URL = 'amqp://localhost/'
-    CELERY_RESULT_BACKEND = 'amqp://127.0.0.1'
+    CELERY_RESULT_BACKEND = 'amqp://guest@localhost//'
     CELERY_TASK_PROTOCOL = 1
 
     CELERY_TIMEZONE = 'UTC'

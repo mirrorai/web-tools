@@ -53,13 +53,24 @@
           </a>
 
           <a id="{{problem['name_id']}}_metrics"
-             href="#"
+             href="{{problem['metrics']['metrics_url'] if 'metrics' in problem else '#'}}"
              style="{{'' if 'metrics' in problem else 'display:none;'}}"
              class="list-group-item annotation-subsection-item">
             <h4 class="list-group-item-heading lead">Metrics</h4>
-            <p class="lead list-group-item-text">
-              accuracy: <span class="accuracy label label-info">0.99992112</span>
-              , accuracy grouth: <span class="accuracy-grouth label label-success">1.2%</span>
+            {% set show_acc =  'metrics' in problem and problem['metrics']['tested']%}
+            <p class="metrics-results lead list-group-item-text"
+               style="{{'' if show_acc else 'display:none;'}}">
+              accuracy:
+              <span class="accuracy label label-info">
+                {{'%0.3f' % problem['metrics']['accuracy']|float if show_acc else '0.0' }}</span>
+              , error reduction:
+              <span class="error-reduction label label-success">
+                {{ 'x%0.3f' % problem['metrics']['error_reduction']|float if show_acc else 'x1.0' }}
+              </span>
+            </p>
+            <p class="metrics-warning lead list-group-item-text"
+               style="{{'' if not show_acc else 'display:none;'}}">
+              last model have not tested yet
             </p>
           </a>
           <div id="{{problem['name_id']}}_manager"

@@ -156,11 +156,8 @@ __C.GRAYSCALE = False
 __C.COLOR_SPACE = 'rgb' # can be bgr
 
 __C.TYPE = 'all'
-__C.CLS_TYPE = 'skin' # can be hair, race
-__C.CLS_NUM = 9
-__C.CROP_METHOD = 0
-__C.METHOD_VERSION = 0
-__C.CUT_BY_MASK = False
+__C.CLS_NUM = 2
+__C.CLS_TYPE = 'gender'
 
 # For reproducibility
 __C.RNG_SEED = 3

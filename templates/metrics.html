@@ -20,11 +20,12 @@
 {{ super() }}
 
 <main role="main" class="container">
+  <div class="table-responsive">
   <table class="table table-bordered">
     <thead>
       <tr>
         <th>#</th>
-        <th>Trained time</th>
+        <th>Train finished time</th>
         {% for metric_name in metrics['metrics_names'] %}
           <th>{{metric_name}}</th>
         {% endfor %}
@@ -40,6 +41,7 @@
       </tr>
     {% endfor%}
   </table>
+  </div>
 </main>
 
 {% endblock %}

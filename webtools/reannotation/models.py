@@ -115,6 +115,9 @@ class GenderSample(db.Model):
     send_timestamp = db.SDColumn(ArrowType, nullable=True)
     is_checked = db.SDColumn(db.Boolean, default=False)
 
+    # error
+    error = db.SDColumn(db.Float, default=0.0)
+
     # cv partition
     k_fold = db.SDColumn(db.Integer, nullable=True) # 0,1,2...K
     always_test = db.SDColumn(db.Integer, default=False) # always keep sample for testing
@@ -140,6 +143,14 @@ class AccuracyMetric(db.Model):
 
 class GenderSampleResult(db.Model):
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('sample_id', 'model_id'),
+    )
+    sample_id = db.SDColumn(
+        db.Integer,
+        db.ForeignKey('gender_sample.id', onupdate='CASCADE', ondelete='CASCADE')
+    )
     model_id = db.SDColumn(
         db.Integer,
         db.ForeignKey('learned_model.id', onupdate='CASCADE', ondelete='CASCADE')

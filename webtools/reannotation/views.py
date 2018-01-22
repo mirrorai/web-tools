@@ -227,6 +227,7 @@ def get_gender_problem_data():
                            'annotation_url': url_for('reannotation', problem='gender'),
                            'stats': gender_stats,
                            'enabled': True,
+                           'metrics': get_last_model_gender_metrics(),
                            'tasks': tasks}
     return gender_problem_data
 
@@ -254,9 +255,9 @@ def get_gender_stats():
 
     return stats
 
-def get_gender_metrics(problem_name):
-
-    models = app.db.session.query(LearnedModel).\
+def get_gender_metrics():
+    problem_name = 'gender'
+    models = app.db.session.query(LearnedModel.id,LearnedModel.finished_ts,AccuracyMetric.accuracy).\
         filter(and_(LearnedModel.k_fold==None,
                     LearnedModel.problem_name==problem_name,
                     LearnedModel.finished_ts!=None)).\
@@ -268,11 +269,39 @@ def get_gender_metrics(problem_name):
     for m in models:
         item = {}
         item['model_id'] = m.id
-        item['finished_ts'] = m.finished_ts
+        item['finished_ts'] = m.finished_ts.format('YYYY-MM-DD HH:mm:ss')
         item['metrics_values'] = [m.accuracy]
         metrics_data['data'].append(item)
 
     return metrics_data
+
+def get_last_model_gender_metrics():
+    problem_name = 'gender'
+    models = app.db.session.query(LearnedModel.id,LearnedModel.finished_ts,AccuracyMetric.accuracy).\
+        filter(and_(LearnedModel.k_fold==None,
+                    LearnedModel.problem_name==problem_name,
+                    LearnedModel.finished_ts!=None)).\
+        outerjoin(AccuracyMetric).order_by(desc(LearnedModel.id)).limit(2).all()
+
+    if len(models) == 0:
+        return None
+    else:
+        item = {}
+        item['metrics_url'] = url_for('metrics', problem=problem_name)
+        cur_accuracy = models[0].accuracy
+        if cur_accuracy is None:
+            item['tested'] = False
+        else:
+            item['tested'] = True
+            item['accuracy'] = cur_accuracy
+            item['error_reduction'] = 0.0
+            if len(models) > 1:
+                prev_accuracy = models[1].accuracy
+                cur_error = 1 - cur_accuracy
+                prev_error = 1 - prev_accuracy
+                reduction = prev_error / cur_error if cur_error > 1e-12 else 1.0
+                item['error_reduction'] = reduction
+        return item
 
 def get_random_gender_samples(base_url):
 
@@ -369,7 +398,7 @@ def metrics(problem):
         abort(404)
     ctx = {'ts': int(time.time())}
     if problem == 'gender':
-        metrics = get_gender_metrics(problem)
+        metrics = get_gender_metrics()
     return render_template('metrics.html', metrics=metrics, ctx=ctx)
 
 @app.route('/update_gender_data', methods=['POST'])

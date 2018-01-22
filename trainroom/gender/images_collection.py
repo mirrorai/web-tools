@@ -7,7 +7,9 @@ class ImagesCollection(object):
     def __init__(self, samples, cfg):
 
         self._samples = []
-        for img_path, label in samples:
+        for sample in samples:
+            img_path = sample[0]
+            label = sample[1]
             if not isfile(img_path):
                 continue
             image_sample = SampleWithCache(img_path, label, cfg)

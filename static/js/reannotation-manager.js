@@ -39,11 +39,19 @@ var ReannotationManager =  new function() {
                     annotation.find('span.count-checked').text(stats['total_checked']);
                     annotation.find('span.count-reannotated').text(stats['total_reannotated']);
                 }
-                if('metrics' in data_for_problem) {
+                if('metrics' in data_for_problem && data_for_problem['metrics'] !== null) {
                     metrics.show();
                     var metrics_data = data_for_problem['metrics'];
-                    metrics.find('span.accuracy').text(metrics_data['accuracy']);
-                    metrics.find('span.accuracy-grouth').text(metrics_data['accuracy_grouth']);
+                    metrics.attr('href', metrics_data['metrics_url']);
+                    if(metrics_data['tested']) {
+                        metrics.find('.metrics-results').show();
+                        metrics.find('.metrics-warning').hide();
+                        metrics.find('span.accuracy').text(metrics_data['accuracy'].toFixed(3));
+                        metrics.find('span.error-reduction').text('x' + metrics_data['error_reduction'].toFixed(3));
+                    } else {
+                        metrics.find('.metrics-results').hide();
+                        metrics.find('.metrics-warning').show();
+                    }
                 } else {
                     metrics.hide();
                 }

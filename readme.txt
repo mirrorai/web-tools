@@ -94,6 +94,11 @@ celery -A webtools.celery worker -B --concurrency 1 --loglevel=info
 # clear queue
 celery -A webtools.celery purge
 
+# rabbitmq
+/usr/local/sbin/rabbitmq-server -detached
+ps aux | grep rabbit --> kill -9 PID
+
+
 # celery workers
 ps aux|grep 'celery worker'
 pkill -f "celery worker"
