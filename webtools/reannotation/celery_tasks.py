@@ -13,6 +13,8 @@ from sqlalchemy.sql.expression import case
 import sys
 import arrow
 
+import numpy as np
+
 class StatusUpdater:
     def __init__(self, task_id):
         self.task = LearningTask.query.filter_by(task_id=task_id)
@@ -84,8 +86,7 @@ def get_test_samples(for_model_id, k_fold=None):
                         GenderSample.k_fold != None,
                         GenderSample.k_fold == k_fold)). \
             outerjoin(GenderUserAnnotation). \
-            filter(or_(and_(GenderUserAnnotation.id == None,
-                            GenderSample.is_annotated_gt),
+            filter(or_(GenderUserAnnotation.id == None,
                        and_(GenderUserAnnotation.id != None,
                             GenderUserAnnotation.is_hard == False,
                             GenderUserAnnotation.is_bad == False))). \
@@ -316,8 +317,10 @@ def compute_gender_metrics(gender_model, update_state=True):
         filter(and_(GenderSample.is_hard == False, # no bad or hard samples
                     GenderSample.is_bad == False)).\
         outerjoin(GenderUserAnnotation). \
-        filter(or_(GenderUserAnnotation.id==None, # if sample has annotation, check it is not marked as hard or bad
-                   and_(GenderUserAnnotation.is_hard == False,
+        filter(or_(and_(GenderUserAnnotation.id==None, # if sample has annotation, check it is not marked as hard or bad
+                        GenderSample.is_annotated_gt),
+                   and_(GenderUserAnnotation.id!=None,
+                        GenderUserAnnotation.is_hard == False,
                         GenderUserAnnotation.is_bad == False))).\
         outerjoin(GenderSampleResult).\
         filter(and_(GenderSampleResult.id!=None,
@@ -353,23 +356,36 @@ def compute_gender_metrics(gender_model, update_state=True):
 
     return metric_name, metric_value
 
-def compute_errors_metrics(gender_model):
+def compute_errors(gender_model):
 
     # (sample_id, is_male (picked from annotation or gt), prob female, prob male)
-    ann = app.db.session.query(GenderSample.id,
+    ann = app.db.session.query(GenderSample,
                                case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                     else_=GenderUserAnnotation.is_male),
+                               GenderSample.checked_times,
                                GenderSampleResult.prob_neg,
                                GenderSampleResult.prob_pos). \
         filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
                     GenderSample.is_bad == False)). \
         outerjoin(GenderUserAnnotation). \
-        filter(or_(GenderUserAnnotation.id == None,  # if sample has annotation, check it is not marked as hard or bad
+        filter(or_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
                    and_(GenderUserAnnotation.is_hard == False,
                         GenderUserAnnotation.is_bad == False))). \
         outerjoin(GenderSampleResult). \
         filter(and_(GenderSampleResult.id != None,
                     GenderSampleResult.model_id == gender_model.id)).all()
+
+    checked_times_max = app.config.get('CHECKED_TIMES_MAX')
+    checked_times_coeff = app.config.get('CHECKED_TIMES_COEFF')
+    checked_times_min = app.config.get('CHECKED_TIMES_MIN')
+
+    for sample, is_male, checked_times, prob_neg, prob_pos in ann:
+        err = prob_neg if is_male else prob_pos
+        sample.error = err
+        sample.is_checked = False
+
+    app.db.session.flush()
+    app.db.session.commit()
 
 @app.celery.task(bind=True)
 def run_test(self, taskname):
@@ -380,7 +396,7 @@ def run_test(self, taskname):
             filter(and_(LearnedModel.problem_name=='gender',
                         LearnedModel.k_fold==None,
                         LearnedModel.prefix!=None)). \
-            order_by(LearnedModel.id).all()
+            order_by(desc(LearnedModel.id)).all()
 
         num_models = len(gender_models)
 
@@ -388,6 +404,9 @@ def run_test(self, taskname):
             updater.update_state(state='FAILURE', progress=1.0, status='No models to test')
             updater.finish(arrow.now())
             return dump_result()
+
+        last_metric_name = ''
+        last_metric_value = 0.0
 
         for idx, gender_model in enumerate(gender_models):
             scale = 1.0 / num_models
@@ -401,11 +420,22 @@ def run_test(self, taskname):
                                  status='Computing metrics..')
             metric_name, metric_value = compute_gender_metrics(gender_model)
 
+            if idx == 0:
+                updater.update_state(state='PROGRESS', progress=1.0,
+                                     status='Computing errors..')
+                compute_errors(gender_model)
+
+                last_metric_name = metric_name
+                last_metric_value = metric_value
+
             updater.update_state(state='SUCCESS', progress=1.0,
                                  status='Successfully tested, {}={:.3f}'.format(metric_name, metric_value))
 
             updater.pop_prefix()
             updater.pop_rescale()
+
+        updater.update_state(state='SUCCESS', progress=1.0,
+                             status='Successfully finished, {}={:.3f}'.format(last_metric_name, last_metric_value))
 
         updater.finish(arrow.now())
         return dump_result()
@@ -520,11 +550,23 @@ def run_test_k_folds(self, taskname, k_fold):
         gender_model = LearnedModel.query.filter_by(k_fold=k_fold, problem_name='gender').\
             order_by(desc(LearnedModel.id)).first()
 
-        run_gender_test(updater, gender_model)
+        if len(gender_model) > 0:
 
-        metric_name, metric_value = compute_gender_metrics(gender_model, update_state=False)
-        updater.update_state(state='SUCCESS', progress=1.0,
-                             status='Successfully tested, {}={:.3f}'.format(metric_name, metric_value))
+            run_gender_test(updater, gender_model)
+
+            updater.update_state(state='PROGRESS', progress=1.0,
+                                 status='Computing metrics..')
+            metric_name, metric_value = compute_gender_metrics(gender_model, update_state=False)
+
+            updater.update_state(state='PROGRESS', progress=1.0,
+                                 status='Computing errors..')
+            compute_errors(gender_model)
+
+            updater.update_state(state='SUCCESS', progress=1.0,
+                                 status='Successfully tested, {}={:.3f}'.format(metric_name, metric_value))
+        else:
+            updater.update_state(state='SUCCESS', progress=1.0,
+                                 status='No model to test')
         updater.finish(arrow.now())
 
         return dump_result()

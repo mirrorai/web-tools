@@ -20,6 +20,7 @@ from flask_principal import Permission, RoleNeed
 from flask_security import auth_token_required
 from sqlalchemy import func, or_, and_, desc, not_, update
 from sqlalchemy.orm import joinedload
+from sqlalchemy.sql.expression import case
 
 from webtools import app
 from webtools.user.forms import GrantAccessUserReferenceForm
@@ -28,7 +29,8 @@ from webtools.utils import apply_min_max_detections_filters, apply_timing_filter
     parse_min_max_detections_parameters, parse_timing_parameters, preprocess_paged_query, zipdir
 from webtools.wrappers import nocache
 
-from .models import Image, GenderSample, GenderUserAnnotation, LearningTask, LearnedModel, AccuracyMetric
+from .models import Image, GenderSample, GenderUserAnnotation, LearningTask, LearnedModel,\
+    AccuracyMetric, GenderSampleResult
 from .forms import GenderDataForm
 from .celery_tasks import dump_task
 from .celery_tasks import run_train, train_on_error, train_on_success, clear_data_for_train_task
@@ -38,6 +40,8 @@ from .celery_tasks import run_train_k_folds, train_k_folds_on_error, train_k_fol
 from .celery_tasks import run_test_k_folds, test_k_folds_on_error, test_k_folds_on_success, \
     clear_data_for_test_k_folds_task
 import celery
+
+import numpy as np
 
 # Shortcuts
 db = app.db
@@ -235,18 +239,29 @@ def get_gender_stats():
 
     total = GenderSample.query.count()
 
-    total_checked = GenderSample.query.filter_by(is_checked=True).count()
+    total_checked = app.db.session.query(GenderSample). \
+        filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+                    GenderSample.is_bad == False,
+                    GenderSample.is_checked==True)). \
+        outerjoin(GenderUserAnnotation). \
+        filter(or_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
+                   and_(GenderUserAnnotation.is_hard == False,
+                        GenderUserAnnotation.is_bad == False))).count()
+
     user_checked = GenderUserAnnotation.query.filter_by(user_id=current_user.id).count()
 
     total_annotated = app.db.session.query(GenderSample).outerjoin(GenderUserAnnotation).\
                         filter(or_(GenderUserAnnotation.id != None, GenderSample.is_annotated_gt)).count()
+
+    to_check = app.db.session.query(GenderSample).\
+        filter(and_(GenderSample.is_checked==False, GenderSample.error > -np.log(0.5))).count()
 
     total_reannotated = app.db.session.query(GenderUserAnnotation).count()
     user_reannotated = 0
 
     stats = {}
     stats['total'] = total
-    stats['to_check'] = total - total_checked
+    stats['to_check'] = to_check
     stats['total_checked'] = total_checked
     stats['user_checked'] = user_checked
     stats['total_reannotated'] = total_reannotated
@@ -303,32 +318,42 @@ def get_last_model_gender_metrics():
                 item['error_reduction'] = reduction
         return item
 
-def get_random_gender_samples(base_url):
+def get_err_gender_samples(base_url):
 
     is_male = random.randint(0, 1)
 
-    # samples = app.db.session.query(GenderSample).\
-    #     outerjoin(UserGenderAnnotation, GenderSample.id == UserGenderAnnotation.gender_sample_id).\
-    #     filter(UserGenderAnnotation.gender_sample_id==None).order_by(func.random())
+    ann = []
+    for i in range(2):
+        ann = app.db.session.query(GenderSample,
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                        else_=GenderUserAnnotation.is_male)). \
+            filter(and_(GenderSample.error > -np.log(0.5),
+                        GenderSample.is_male == is_male,
+                        GenderSample.is_checked == False,
+                        GenderSample.is_hard == False,  # no bad or hard samples
+                        GenderSample.is_bad == False)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(
+            or_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
+                and_(GenderUserAnnotation.id != None,
+                     GenderUserAnnotation.is_hard == False,
+                     GenderUserAnnotation.is_bad == False))).order_by(desc(GenderSample.error)).limit(21).all()
 
-    samples = GenderSample.query.filter(GenderSample.is_checked==False)
-    samples_gender = samples.filter(GenderSample.is_male==is_male)
-    if samples_gender.count() == 0:
+        if len(ann) > 0:
+            break
         is_male = not is_male
-        samples_gender = samples.filter(GenderSample.is_male==is_male)
-    samples = samples_gender.order_by(func.random()).limit(21).all()
 
     samples_data = []
-    for sample in samples:
+    for sample, is_male in ann:
         sample_data = {}
-        sample_data['is_male'] = int(sample.is_male)
+        sample_data['is_male'] = int(is_male)
         sample_data['image'] = base_url + 'image/' + str(sample.image.id)
         sample_data['id'] = sample.id
         samples_data.append(sample_data)
     return samples_data, is_male
 
 def gender_problem(request):
-    samples, is_male = get_random_gender_samples(request.url_root)
+    samples, is_male = get_err_gender_samples(request.url_root)
     form = GenderDataForm()
     stats = get_gender_stats()
     ctx = {'stats': stats, 'is_empty': len(samples) == 0, 'samples': samples,
@@ -433,7 +458,14 @@ def update_gender_data():
         gender_samples = GenderSample.query.filter(GenderSample.id.in_(list_of_ids))
         if gender_samples.count() != len(list_of_ids):
             break
-        gender_samples.update(dict(is_checked=True), synchronize_session='fetch')
+
+        for gender_sample in gender_samples.all():
+            gender_sample.is_checked = True
+            gender_sample.checked_times += 1
+            if gender_sample.id in filt_gender_data:
+                gender_sample.checked_times = 0
+
+        app.db.session.flush()
 
         accepted = 0
         for sample_id in filt_gender_data:

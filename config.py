@@ -5,6 +5,7 @@ import logging
 import textwrap
 from datetime import timedelta
 from celery.schedules import crontab
+from kombu import Queue
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -36,6 +37,9 @@ class Config(object):
     LIMIT_IMAGES_LOAD = 0
 
     CV_PARTITION_FOLDS = 4
+    CHECKED_TIMES_MAX = 5
+    CHECKED_TIMES_MIN = 0
+    CHECKED_TIMES_COEFF = 0.9
 
     # Mail sending
     MAIL_NO_REPLY_SENDER = '{} < no-reply-{}@mirror-ai.com >'.format(SITE_NAME, SITE_NAME.lower())
