@@ -18,6 +18,11 @@ class ImagesDatabase(db.Model):
     path = db.SDColumn(db.String(512), unique=True)
 
 class Image(db.Model):
+
+    __table_args__ = (
+        db.UniqueConstraint('imdb_id', 'imname'),
+    )
+
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
     # Image properties
     imname = db.SDColumn(db.String(128))

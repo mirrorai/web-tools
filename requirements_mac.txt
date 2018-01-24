@@ -61,6 +61,6 @@ WTForms-Alchemy==0.16.1
 WTForms-Components==0.10.0
 opencv-python
 furl
-mxnet-cu80>=1.0.0
+mxnet>=1.0.0
 easydict
 pyyaml

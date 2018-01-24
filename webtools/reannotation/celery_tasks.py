@@ -520,7 +520,7 @@ def run_test_k_folds(self, taskname, k_fold):
         gender_model = LearnedModel.query.filter_by(k_fold=k_fold, problem_name='gender').\
             order_by(desc(LearnedModel.id)).first()
 
-        if len(gender_model) > 0:
+        if gender_model:
 
             run_gender_test(updater, gender_model)
 

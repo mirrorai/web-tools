@@ -53,23 +53,30 @@ class AddImageDB(Command):
         Option(
             '--input-file', '-i',
             dest='input_file',
-            help='Path to file with samples.'
+            help='Path to file with samples'
         ),
         Option(
             '--dbname', '-n',
             dest='db_name',
-            help='Database name.'
+            help='Database name'
         ),
         Option(
             '--type', '-t',
             dest='db_type',
-            help='Database type (\'gender\').'
+            help='Database type (\'gender\')'
         ),
         Option(
             '--test-only',
             dest='test_only',
-            help='Images as test.',
+            help='Images for testing',
             default=0
+        )
+        ,
+        Option(
+            '--k-fold',
+            dest='k_fold',
+            help='K-Fold',
+            default=-1
         )
     )
 
@@ -84,22 +91,37 @@ class AddImageDB(Command):
         for line in content:
             parts = line.split(';')
             local_path = parts[0]
-            label = parts[1]
+            if len(parts) == 2:
+                label = parts[1]
+            else:
+                label = -1
             samples.append((local_path, label))
 
         return samples
 
-    def run(self, input_file, db_name, db_type, test_only=0):
+    def run(self, input_file, db_name, db_type, test_only=0, k_fold=-1):
 
         assert(db_type in ['gender'])
+        k_fold = None if k_fold == -1 else k_fold
 
         samples = self.load_samples(input_file)
 
         base_dir = dirname(input_file)
 
+        imdb = ImagesDatabase.query.filter_by(path=base_dir).first()
+        if imdb:
+            print('database already exist: {}'.format(base_dir))
+        else:
+            print('adding data to database...')
+            imdb = ImagesDatabase(name=db_name, path=base_dir)
+            app.db.session.add(imdb)
+            app.db.session.flush()
+
         accepted_samples = []
         skipped = 0
         accepted = 0
+        not_labeled = 0
+        existed = 0
         limit = app.config.get('LIMIT_IMAGES_LOAD')
         for local_path, label in samples:
             img_path = join(base_dir, local_path)
@@ -112,12 +134,20 @@ class AddImageDB(Command):
                 continue
 
             if label == 'f':
-                is_male = False
+                is_male = 0
             elif label == 'm':
-                is_male = True
+                is_male = 1
+            elif label == -1:
+                is_male = -1
+                not_labeled += 1
             else:
-                print('wrong label: {}'.format(label))
+                print('uknown label: {}'.format(label))
                 return
+
+            if Image.query.filter_by(imname=local_path, imdb_id=imdb.id).count():
+                skipped += 1
+                existed += 1
+                continue
 
             accepted_samples.append((local_path, is_male, img.shape))
 
@@ -127,11 +157,8 @@ class AddImageDB(Command):
 
         print('total images accepted: {}'.format(len(accepted_samples)))
         print('total images skipped: {}'.format(skipped))
-
-        print('adding data to database...')
-        imdb = ImagesDatabase(name=db_name, path=base_dir)
-        app.db.session.add(imdb)
-        app.db.session.flush()
+        print('total images not labeled: {}'.format(not_labeled))
+        print('total images existed in db: {}'.format(existed))
 
         for local_path, is_male, shape in accepted_samples:
 
@@ -144,7 +171,11 @@ class AddImageDB(Command):
             app.db.session.flush()
 
             # create sample
-            sample = GenderSample(image_id=image.id, is_male=is_male, is_annotated_gt=True, always_test=test_only)
+            if is_male != -1:
+                sample = GenderSample(image_id=image.id, is_male=is_male, k_fold=k_fold,
+                                      is_annotated_gt=True, always_test=test_only)
+            else:
+                sample = GenderSample(image_id=image.id, k_fold=k_fold, always_test=test_only)
             # add to db
             app.db.session.add(sample)
             app.db.session.flush()
