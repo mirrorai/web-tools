@@ -254,7 +254,7 @@ def get_gender_stats():
                         filter(or_(GenderUserAnnotation.id != None, GenderSample.is_annotated_gt)).count()
 
     to_check = app.db.session.query(GenderSample).\
-        filter(and_(GenderSample.is_checked==False, GenderSample.error > -np.log(0.5))).count()
+        filter(and_(GenderSample.is_checked==False, GenderSample.error > 0.5)).count()
 
     total_reannotated = app.db.session.query(GenderUserAnnotation).count()
     user_reannotated = 0
@@ -318,7 +318,57 @@ def get_last_model_gender_metrics():
                 item['error_reduction'] = reduction
         return item
 
-def get_err_gender_samples(base_url):
+def get_samples_for_ann():
+
+    max_checked_count = app.config.get('CHECKED_TIMES_MAX')
+    while True:
+        # annotated images with high error and no checked before
+        samples = get_err_gender_samples(max_checked_count=0)
+        break
+        # new images
+        #if len(samples) == 0:
+        #     samples = get_new_gender_samples()
+
+        # annotated images and checked before
+        # if len(samples) == 0:
+        #     samples = get_err_gender_samples(max_checked_count=max_checked_count)
+
+# def get_new_gender_samples():
+#     is_male = random.randint(0, 1)
+#
+#     ann = []
+#     for i in range(2):
+#         ann = app.db.session.query(GenderSample,
+#                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+#                                         else_=GenderUserAnnotation.is_male)). \
+#             filter(and_(GenderSample.error > 0.2,
+#                         GenderSample.is_checked == False,
+#                         GenderSample.is_hard == False,  # no bad or hard samples
+#                         GenderSample.is_bad == False)). \
+#             outerjoin(GenderUserAnnotation). \
+#             filter(
+#             and_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
+#                  GenderSample.is_annotated_gt==False)).\
+#             outerjoin(GenderSampleResult). \
+#             filter(
+#             and_(GenderSampleResult.id != None,  # if sample has annotation check it is not marked as hard or bad
+#                  GenderSampleResult.prob_neg > GenderSampleResult.prob_pos)). \
+#             .order_by(desc(GenderSample.error)).limit(21).all()
+#
+#         if len(ann) > 0:
+#             break
+#         is_male = not is_male
+#
+#     samples_data = []
+#     for sample, is_male in ann:
+#         sample_data = {}
+#         sample_data['is_male'] = int(is_male)
+#         sample_data['image'] = url_for('image', id=sample.image.id)
+#         sample_data['id'] = sample.id
+#         samples_data.append(sample_data)
+#     return samples_data, is_male
+
+def get_err_gender_samples(max_checked_count=0):
 
     is_male = random.randint(0, 1)
 
@@ -327,14 +377,16 @@ def get_err_gender_samples(base_url):
         ann = app.db.session.query(GenderSample,
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
-            filter(and_(GenderSample.error > -np.log(0.5),
+            filter(and_(GenderSample.error > 0.5,
                         GenderSample.is_male == is_male,
+                        GenderSample.checked_times <= max_checked_count,
                         GenderSample.is_checked == False,
                         GenderSample.is_hard == False,  # no bad or hard samples
                         GenderSample.is_bad == False)). \
             outerjoin(GenderUserAnnotation). \
             filter(
-            or_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
+            or_(and_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
+                    GenderSample.is_annotated_gt),
                 and_(GenderUserAnnotation.id != None,
                      GenderUserAnnotation.is_hard == False,
                      GenderUserAnnotation.is_bad == False))).order_by(desc(GenderSample.error)).limit(21).all()
@@ -347,7 +399,7 @@ def get_err_gender_samples(base_url):
     for sample, is_male in ann:
         sample_data = {}
         sample_data['is_male'] = int(is_male)
-        sample_data['image'] = base_url + 'image/' + str(sample.image.id)
+        sample_data['image'] = url_for('image', id=sample.image.id)
         sample_data['id'] = sample.id
         samples_data.append(sample_data)
     return samples_data, is_male

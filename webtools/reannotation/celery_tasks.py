@@ -111,42 +111,6 @@ def get_test_samples(for_model_id, k_fold=None):
 
     samples = [(s.GenderSample.image.filename(), 1 if s[1] else 0, s.GenderSample.id) for s in res]
 
-    # app.db.session.query(GenderSampleResult, GenderSample, GenderUserAnnotation).\
-    #     filter(GenderSampleResult.model_id==for_model_id).\
-    #     outerjoin(GenderSample). \
-    #     filter(and_(GenderSample.is_hard == False,
-    #                 GenderSample.is_bad == False,
-    #                 GenderSample.is_annotated_gt,
-    #                 GenderSample.always_test == True)). \
-    #     outerjoin(GenderUserAnnotation). \
-    #     filter(GenderUserAnnotation.id == None). \
-    #     order_by(func.random()).all()
-    #
-    # samples_gt = app.db.session.query(GenderSample). \
-    #     filter(and_(GenderSample.is_hard == False,
-    #                 GenderSample.is_bad == False,
-    #                 GenderSample.is_annotated_gt,
-    #                 GenderSample.always_test == True)). \
-    #     outerjoin(GenderUserAnnotation). \
-    #     filter(GenderUserAnnotation.id == None). \
-    #     outerjoin(GenderSampleResult). \
-    #     filter(or_(GenderSampleResult.model_id != for_model_id,
-    #                GenderSampleResult.id == None)). \
-    #     order_by(func.random()).all()
-    #
-    # samples_ann = app.db.session.query(GenderSample, GenderUserAnnotation). \
-    #     filter(GenderSample.always_test == True). \
-    #     join(GenderUserAnnotation). \
-    #     filter(and_(GenderUserAnnotation.is_hard == False,
-    #                 GenderUserAnnotation.is_bad == False)). \
-    #     outerjoin(GenderSampleResult). \
-    #     filter(or_(GenderSampleResult.model_id != for_model_id,
-    #                 GenderSampleResult.id == None)). \
-    #     order_by(func.random()).all()
-
-    # samples = [(s.image.filename(), 1 if s.is_male else 0, s.id) for s in samples_gt]
-    # samples.extend([(s.image.filename(), 1 if s.GenderUserAnnotation.is_male else 0, s.id) for s in samples_ann])
-
     return samples
 
 def get_train_samples(k_fold=None):
@@ -362,6 +326,9 @@ def compute_errors(gender_model):
     ann = app.db.session.query(GenderSample,
                                case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                     else_=GenderUserAnnotation.is_male),
+                               case([(and_(GenderUserAnnotation.id == None,
+                                           GenderSample.is_annotated_gt==False), False)], # has annotation
+                                    else_=True),
                                GenderSample.checked_times,
                                GenderSampleResult.prob_neg,
                                GenderSampleResult.prob_pos). \
@@ -379,8 +346,11 @@ def compute_errors(gender_model):
     checked_times_coeff = app.config.get('CHECKED_TIMES_COEFF')
     checked_times_min = app.config.get('CHECKED_TIMES_MIN')
 
-    for sample, is_male, checked_times, prob_neg, prob_pos in ann:
-        err = prob_neg if is_male else prob_pos
+    for sample, is_male, is_ann, checked_times, prob_neg, prob_pos in ann:
+        if is_ann:
+            err = prob_neg if is_male else prob_pos
+        else:
+            err = min(prob_neg, prob_pos)
         sample.error = err
         sample.is_checked = False
 

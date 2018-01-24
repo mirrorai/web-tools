@@ -95,9 +95,27 @@ celery -A webtools.celery worker -B --concurrency 1 --loglevel=info
 celery -A webtools.celery purge
 
 # rabbitmq
-/usr/local/sbin/rabbitmq-server -detached
-ps aux | grep rabbit --> kill -9 PID
+# start
+/usr/local/sbin/rabbitmq-server -detached # on background
+/usr/local/sbin/rabbitmq-server #
 
+# stop
+rabbitmqctl stop
+
+# check no process
+ps aux | grep rabbit # --> kill -9 PID
+ps aux | grep erlang # --> kill -9 PID
+# kill
+pkill -f rabbit
+pkill -f erlang
+
+rabbitmqctl status
+# service rabbitmq-server start
+brew services stop rabbitmq
+brew services start rabbitmq
+
+brew uninstall rabbitmq
+brew install rabbitmq
 
 # celery workers
 ps aux|grep 'celery worker'
