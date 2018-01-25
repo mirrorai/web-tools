@@ -377,6 +377,37 @@ def compute_errors(gender_model):
     app.db.session.flush()
     app.db.session.commit()
 
+def remove_old_main_models(problem_name):
+
+    keep_top_cnt = app.config.get('KEEP_TOP_MODELS_CNT')
+
+    last_two = app.db.session.query(LearnedModel).\
+        filter(and_(LearnedModel.problem_name==problem_name,
+                    LearnedModel.k_fold==None))\
+        .order_by(desc(LearnedModel.id)).limit(2).all()
+    keeped_models = {m.id:m for m in last_two}
+
+    top_models =  app.db.session.query(LearnedModel).\
+        filter(and_(LearnedModel.k_fold==None,
+                    LearnedModel.problem_name==problem_name)).\
+        join(AccuracyMetric).order_by(desc(AccuracyMetric.accuracy)).all()
+
+    for model in top_models:
+        if len(keeped_models) >= keep_top_cnt + 2:
+            break
+        if model.id not in keeped_models:
+            keeped_models[model.id] = model
+
+    deleted = 0
+    for model in top_models:
+        if model.id not in keeped_models:
+            app.db.session.delete(model)
+            deleted += 1
+
+    print('{} old models deleted'.format(deleted))
+    app.db.session.flush()
+    app.db.session.commit()
+
 @app.celery.task(bind=True)
 def run_test(self, taskname):
     if taskname == 'gender':
@@ -395,6 +426,9 @@ def run_test(self, taskname):
             updater.finish(arrow.now())
             return dump_result()
 
+        updater.update_state(state='PROGRESS', progress=0.0, status='Waiting available gpu..')
+        gpu_id = wait_available_gpu(self.request.id)
+
         last_metric_name = ''
         last_metric_value = 0.0
 
@@ -404,7 +438,7 @@ def run_test(self, taskname):
             updater.push_rescale(shift, scale)
             updater.push_prefix('Model [{}/{}] '.format(idx + 1, num_models))
 
-            run_gender_test(updater, self.request.id, gender_model)
+            run_gender_test(updater, gpu_id, gender_model)
 
             updater.update_state(state='PROGRESS', progress=1.0,
                                  status='Computing metrics..')
@@ -424,6 +458,13 @@ def run_test(self, taskname):
             updater.pop_prefix()
             updater.pop_rescale()
 
+        updater.update_state(state='PROGRESS', progress=1.0, status='Releasing GPU..')
+        release_gpu(self.request.id)
+
+        updater.update_state(state='PROGRESS', progress=1.0,
+                             status='Removing old models..')
+        remove_old_main_models(taskname)
+
         updater.update_state(state='SUCCESS', progress=1.0,
                              status='Successfully finished, {}={:.3f}'.format(last_metric_name, last_metric_value))
 
@@ -433,10 +474,7 @@ def run_test(self, taskname):
         print('uknown taskname: {}'.format(taskname))
         return dump_result()
 
-def run_gender_test(updater, task_id, gender_model):
-
-    updater.update_state(state='PROGRESS', progress=0.01, status='Waiting available gpu..')
-    gpu_id = wait_available_gpu(task_id)
+def run_gender_test(updater, gpu_id, gender_model):
 
     updater.update_state(state='PROGRESS', progress=0.01, status='Preparing samples for testing..')
     samples = get_test_samples(gender_model.id, k_fold=gender_model.k_fold)
@@ -474,9 +512,6 @@ def run_gender_test(updater, task_id, gender_model):
                                                model_id=gender_model.id, prob_neg=prob_neg, prob_pos=prob_pos)
             app.db.session.add(result_sample)
             app.db.session.flush()
-
-    updater.update_state(state='PROGRESS', progress=1.0, status='Releasing GPU..')
-    release_gpu(task_id)
 
 @app.celery.task
 def test_on_error(uuid):
@@ -539,6 +574,14 @@ def clear_data_for_train_k_folds_task(uuid, state, status):
 
     release_gpu(uuid)
 
+
+def remove_old_k_folds_models(problem_name, except_id, k_fold):
+    a = LearnedModel.query.filter(and_(LearnedModel.k_fold == k_fold,
+                                       LearnedModel.id != except_id,
+                                       LearnedModel.problem_name == problem_name)).delete()
+    print('{} models deleted'.format(a))
+    app.db.session.commit()
+
 # test k-folds
 @app.celery.task(bind=True)
 def run_test_k_folds(self, taskname, k_fold):
@@ -551,7 +594,13 @@ def run_test_k_folds(self, taskname, k_fold):
 
         if gender_model:
 
-            run_gender_test(updater, self.request.id, gender_model)
+            updater.update_state(state='PROGRESS', progress=0.0, status='Waiting available gpu..')
+            gpu_id = wait_available_gpu(self.request.id)
+
+            run_gender_test(updater, gpu_id, gender_model)
+
+            updater.update_state(state='PROGRESS', progress=1.0, status='Releasing GPU..')
+            release_gpu(self.request.id)
 
             updater.update_state(state='PROGRESS', progress=1.0,
                                  status='Computing metrics..')
@@ -560,6 +609,11 @@ def run_test_k_folds(self, taskname, k_fold):
             updater.update_state(state='PROGRESS', progress=1.0,
                                  status='Computing errors..')
             compute_errors(gender_model)
+
+            # remove old models
+            updater.update_state(state='PROGRESS', progress=1.0,
+                                 status='Removing old models..')
+            remove_old_k_folds_models('gender', gender_model.id, k_fold)
 
             updater.update_state(state='SUCCESS', progress=1.0,
                                  status='Successfully tested, {}={:.3f}'.format(metric_name, metric_value))

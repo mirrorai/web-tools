@@ -41,6 +41,7 @@ class Config(object):
     SAMPLES_MIN_ERROR = 0.5
     NEW_SAMPLES_MIN_ERROR = 0.2
     SEND_EXPIRE_MIN = 4
+    KEEP_TOP_MODELS_CNT = 3
 
     GPU_IDS = [1,2,3]
 
@@ -153,8 +154,9 @@ class ProductionConfig(Config):
     LOG_LEVEL = logging.INFO
 
     # Image handling
-    IMAGE_FOLDER = '__NOT_SET__'
-    IMAGE_CACHE_FOLDER = '__NOT_SET__'
+    IMAGE_FOLDER = os.path.join(basedir, 'images/')
+    IMAGE_CACHE_FOLDER = os.path.join(basedir, 'cache_images/')
+    TEMP_FOLDER = os.path.join(basedir, 'temp_data/')
 
     # SqlAlchemy
     MYSQL_PASS = os.environ.get('MYSQL_PASS')
