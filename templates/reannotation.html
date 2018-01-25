@@ -43,7 +43,9 @@
             <p class="lead list-group-item-text">
               total samples:
               <span class="count-total label label-info">{{ problem['stats']['total'] if 'stats' in problem else 0 }}</span>
-              , to check:
+              , new samples:
+              <span class="count-new-samples label label-info">{{ problem['stats']['new_samples'] if 'stats' in problem else 0 }}</span>
+              , total to check:
               <span class="count-to-check label label-info">{{ problem['stats']['to_check'] if 'stats' in problem else 0 }}</span>
               , checked:
               <span class="count-checked label label-success">{{ problem['stats']['total_checked'] if 'stats' in problem else 0 }}</span>

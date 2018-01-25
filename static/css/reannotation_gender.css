@@ -229,9 +229,9 @@
   padding: 4px;
   line-height: 1.42857143;
   border: 1px solid #ddd;
-  -webkit-transition: all .2s ease-in-out;
-  -o-transition: all .2s ease-in-out;
-  transition: all .2s ease-in-out;
+  -webkit-transition: all .05s ease-in-out;
+  -o-transition: all .05s ease-in-out;
+  transition: all .05s ease-in-out;
 }
 
 .sample-card .caption {
@@ -240,11 +240,13 @@
 }
 
 .sample-card-man {
-  background-color: #0392cf;
+  /*background-color: #0392cf;*/
+  background-color: #11fd11;
 }
 
 .sample-card-woman {
-  background-color: #fdf498;
+  /*background-color: #fdf498;*/
+  background-color: #fd1111;
 }
 
 .sample-card .btn {

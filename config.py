@@ -38,8 +38,8 @@ class Config(object):
 
     CV_PARTITION_FOLDS = 4
     CHECKED_TIMES_MAX = 5
-    CHECKED_TIMES_MIN = 0
-    CHECKED_TIMES_COEFF = 0.9
+    SAMPLES_MIN_ERROR = 0.5
+    NEW_SAMPLES_MIN_ERROR = 0.2
 
     # Mail sending
     MAIL_NO_REPLY_SENDER = '{} < no-reply-{}@mirror-ai.com >'.format(SITE_NAME, SITE_NAME.lower())
@@ -83,6 +83,10 @@ class Config(object):
     CELERYBEAT_SCHEDULE = {
         'print_echo_every_10_minutes': {
             'task': 'webtools.cron_tasks.print_echo',
+            'schedule': timedelta(seconds=10)
+        },
+        'reset_send_every_10_minutes': {
+            'task': 'webtools.cron_tasks.reset_send_samples',
             'schedule': timedelta(minutes=10)
         },
         'clean_waste_models_every_1_hour': {
@@ -90,6 +94,11 @@ class Config(object):
             'schedule': timedelta(hours=1)
         }
     }
+
+    # CELERY_TASK_ROUTES = {
+    #     'webtools.cron_tasks.*': {'queue': 'celery'},
+    #     'webtools.reannotation.celery_tasks.*': {'queue': 'learning'}
+    # }
 
 class DevelopmentConfig(Config):
     CONFIG_TAG = ('[D]', 'Development')

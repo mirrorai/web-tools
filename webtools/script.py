@@ -12,6 +12,7 @@ from datetime import timedelta
 from flask_migrate import downgrade, upgrade
 from flask_script import Command, Option
 from flask_security.confirmable import confirm_user
+from sqlalchemy import func, or_, and_, desc, not_, update
 import numpy as np
 import codecs
 
@@ -112,11 +113,12 @@ class AddImageDB(Command):
         if imdb:
             print('database already exist: {}'.format(base_dir))
         else:
-            print('adding data to database...')
+            print('add image database: {}'.format(base_dir))
             imdb = ImagesDatabase(name=db_name, path=base_dir)
             app.db.session.add(imdb)
             app.db.session.flush()
 
+        print('adding data to database...')
         accepted_samples = []
         skipped = 0
         accepted = 0
@@ -251,7 +253,7 @@ class DatabaseCommand(Command):
         return True
 
 class CleanWasteModels(Command):
-    """Removes all snapshots and cached images that are not referenced from DB"""
+    """Removes all experiments that are not referenced from DB"""
 
     def run(self, **kwargs):
         self.clean_models()
@@ -281,6 +283,21 @@ class CleanWasteModels(Command):
                     keeped += 1
 
             print('{}: {} deleted, {} keeped'.format(problem_name, removed, keeped))
+
+
+class ResetSendSamples(Command):
+    """Reset send flag"""
+    def run(self, **kwargs):
+        self.reset_send()
+
+    @staticmethod
+    def reset_send():
+        utc = arrow.now()
+        expected = utc.shift(minutes=-10)
+        t = GenderSample.query.filter(and_(GenderSample.send_timestamp<expected,
+                                       GenderSample.is_send)).update(dict(is_send=False), synchronize_session='fetch')
+        app.db.session.commit()
+        print('samples reset count: {}'.format(t))
 
 
 class CleanWasteImages(Command):

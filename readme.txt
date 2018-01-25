@@ -94,6 +94,11 @@ celery -A webtools.celery worker -B --concurrency 1 --loglevel=info
 # clear queue
 celery -A webtools.celery purge
 
+# hostnames (-n) is important!
+# http://celery.readthedocs.io/en/latest/faq.html#can-i-cancel-the-execution-of-a-task
+celery -A webtools.celery worker -n celery@%h -B --concurrency 1 --loglevel=info -Q celery
+celery -A webtools.celery worker -n learning@%h -B --concurrency 1 --loglevel=info -Q learning
+
 # rabbitmq
 # start
 /usr/local/sbin/rabbitmq-server -detached # on background

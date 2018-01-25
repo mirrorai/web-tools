@@ -192,7 +192,7 @@ def stop_all_learning_task(problem_name):
     stopped = 0
     for learning_task in learning_task.all():
         task_id = learning_task.task_id
-        celery.task.control.revoke(task_id, terminate=True)
+        celery.task.control.revoke(task_id, terminate=True, queue='learning')
         train_on_error(task_id)
         stopped += 1
     print('{} tasks successfully stopped'.format(stopped))
@@ -253,8 +253,33 @@ def get_gender_stats():
     total_annotated = app.db.session.query(GenderSample).outerjoin(GenderUserAnnotation).\
                         filter(or_(GenderUserAnnotation.id != None, GenderSample.is_annotated_gt)).count()
 
+
+    new_min_error = app.config.get('NEW_SAMPLES_MIN_ERROR')
+    min_error = app.config.get('SAMPLES_MIN_ERROR')
+
     to_check = app.db.session.query(GenderSample).\
-        filter(and_(GenderSample.is_checked==False, GenderSample.error > 0.5)).count()
+        outerjoin(GenderUserAnnotation).\
+        filter(and_(GenderSample.is_checked==False,
+                    GenderSample.is_bad==False,
+                    GenderSample.is_hard==False,
+                    and_(or_(GenderUserAnnotation.id == None,
+                             and_(GenderUserAnnotation.is_hard == False,
+                                  GenderUserAnnotation.is_bad == False))),
+                    or_(and_(GenderSample.error > min_error,
+                             or_(GenderSample.is_annotated_gt,
+                                 GenderUserAnnotation.id != None)),
+                        and_(GenderSample.error > new_min_error,
+                             GenderSample.is_annotated_gt==False,
+                             GenderUserAnnotation.id == None)))).count()
+
+    new_samples = app.db.session.query(GenderSample). \
+        outerjoin(GenderUserAnnotation). \
+        filter(and_(GenderSample.is_checked == False,
+                    GenderSample.is_bad == False,
+                    GenderSample.is_hard == False,
+                    GenderUserAnnotation.id == None,
+                    GenderSample.is_annotated_gt == False,
+                    GenderSample.error > new_min_error)).count()
 
     total_reannotated = app.db.session.query(GenderUserAnnotation).count()
     user_reannotated = 0
@@ -262,6 +287,7 @@ def get_gender_stats():
     stats = {}
     stats['total'] = total
     stats['to_check'] = to_check
+    stats['new_samples'] = new_samples
     stats['total_checked'] = total_checked
     stats['user_checked'] = user_checked
     stats['total_reannotated'] = total_reannotated
@@ -323,7 +349,8 @@ def get_samples_for_ann():
     max_checked_count = app.config.get('CHECKED_TIMES_MAX')
     while True:
         # annotated images with high error and no checked before
-        samples = get_err_gender_samples(max_checked_count=0)
+        # samples = get_err_gender_samples(max_checked_count=0)
+        samples, is_male = get_new_gender_samples()
         break
         # new images
         #if len(samples) == 0:
@@ -333,52 +360,63 @@ def get_samples_for_ann():
         # if len(samples) == 0:
         #     samples = get_err_gender_samples(max_checked_count=max_checked_count)
 
-# def get_new_gender_samples():
-#     is_male = random.randint(0, 1)
-#
-#     ann = []
-#     for i in range(2):
-#         ann = app.db.session.query(GenderSample,
-#                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
-#                                         else_=GenderUserAnnotation.is_male)). \
-#             filter(and_(GenderSample.error > 0.2,
-#                         GenderSample.is_checked == False,
-#                         GenderSample.is_hard == False,  # no bad or hard samples
-#                         GenderSample.is_bad == False)). \
-#             outerjoin(GenderUserAnnotation). \
-#             filter(
-#             and_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
-#                  GenderSample.is_annotated_gt==False)).\
-#             outerjoin(GenderSampleResult). \
-#             filter(
-#             and_(GenderSampleResult.id != None,  # if sample has annotation check it is not marked as hard or bad
-#                  GenderSampleResult.prob_neg > GenderSampleResult.prob_pos)). \
-#             .order_by(desc(GenderSample.error)).limit(21).all()
-#
-#         if len(ann) > 0:
-#             break
-#         is_male = not is_male
-#
-#     samples_data = []
-#     for sample, is_male in ann:
-#         sample_data = {}
-#         sample_data['is_male'] = int(is_male)
-#         sample_data['image'] = url_for('image', id=sample.image.id)
-#         sample_data['id'] = sample.id
-#         samples_data.append(sample_data)
-#     return samples_data, is_male
+    return samples, is_male
+
+def get_new_gender_samples():
+    is_male_global = random.randint(0, 1)
+    min_error = app.config.get('NEW_SAMPLES_MIN_ERROR')
+
+    for i in range(2):
+        ann = app.db.session.query(GenderSample,
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                        else_=GenderUserAnnotation.is_male)). \
+            filter(and_(GenderSample.error > min_error,
+                        GenderSample.is_checked == False,
+                        GenderSample.is_hard == False,  # no bad or hard samples
+                        GenderSample.is_bad == False,
+                        GenderSample.is_male == is_male_global)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(and_(GenderUserAnnotation.id == None,  # no gt and user annotation
+                        GenderSample.is_annotated_gt==False)).limit(21).all()
+
+        if len(ann) > 0:
+            break
+        is_male_global = not is_male_global
+
+    print(len(ann))
+    utc = arrow.now()
+    samples_data = []
+    for sample, is_male in ann:
+        sample_data = {}
+        sample_data['is_male'] = int(is_male)
+        sample_data['image'] = url_for('image', id=sample.image.id)
+        sample_data['id'] = sample.id
+        sample_data['error'] = sample.error
+        sample_data['error_label'] = 'uncertainty'
+
+        sample.is_send = True
+        sample.send_timestamp = utc
+
+        samples_data.append(sample_data)
+
+    app.db.session.flush()
+    app.db.session.commit()
+
+    return samples_data, is_male_global
 
 def get_err_gender_samples(max_checked_count=0):
 
-    is_male = random.randint(0, 1)
+    is_male_global = random.randint(0, 1)
+
+    min_error = app.config.get('SAMPLES_MIN_ERROR')
 
     ann = []
     for i in range(2):
         ann = app.db.session.query(GenderSample,
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
-            filter(and_(GenderSample.error > 0.5,
-                        GenderSample.is_male == is_male,
+            filter(and_(GenderSample.error > min_error,
+                        GenderSample.is_male == is_male_global,
                         GenderSample.checked_times <= max_checked_count,
                         GenderSample.is_checked == False,
                         GenderSample.is_hard == False,  # no bad or hard samples
@@ -393,21 +431,32 @@ def get_err_gender_samples(max_checked_count=0):
 
         if len(ann) > 0:
             break
-        is_male = not is_male
+        is_male_global = not is_male_global
 
+    utc = arrow.now()
     samples_data = []
     for sample, is_male in ann:
         sample_data = {}
         sample_data['is_male'] = int(is_male)
         sample_data['image'] = url_for('image', id=sample.image.id)
         sample_data['id'] = sample.id
+        sample_data['error'] = sample.error
+        sample_data['error_label'] = 'error'
+
+        sample.is_send = True
+        sample.send_timestamp = utc
+
         samples_data.append(sample_data)
-    return samples_data, is_male
+
+    app.db.session.flush()
+    app.db.session.commit()
+
+    return samples_data, is_male_global
 
 def gender_problem(request):
-    samples, is_male = get_err_gender_samples(request.url_root)
     form = GenderDataForm()
     stats = get_gender_stats()
+    samples, is_male = get_samples_for_ann()
     ctx = {'stats': stats, 'is_empty': len(samples) == 0, 'samples': samples,
            'is_male': is_male, 'ts': int(time.time())}
     return render_template('reannotation_gender.html', ctx=ctx, form=form)
@@ -497,7 +546,80 @@ def update_gender_data():
         gender_data = validate_gender_input_data(is_male, gender_data)
         if gender_data is None:
             break
-        filt_gender_data = gender_filter_only_changed(gender_data)
+        # filt_gender_data = gender_filter_only_changed(gender_data)
+
+        list_of_ids = [sample_id for sample_id in gender_data]
+
+        # select samples data
+        samples_data = app.db.session.query(GenderSample, GenderUserAnnotation).filter(GenderSample.id.in_(list_of_ids))\
+            .outerjoin(GenderUserAnnotation).filter(GenderUserAnnotation.id==None).all()
+        samples_db_data = {sd.GenderSample.id:sd for sd in samples_data}
+
+        if len(samples_db_data) != len(list_of_ids):
+            break
+
+        n_changed = 0
+        n_not_changed = 0
+        for sample_id in list_of_ids:
+            gdata = gender_data[sample_id]
+            sample_db = samples_db_data[sample_id].GenderSample
+            user_ann_db = samples_db_data[sample_id].GenderUserAnnotation
+
+            if user_ann_db is None:
+                is_changed = True
+                if sample_db.is_annotated_gt:
+                    is_changed = False
+                    if gdata['is_hard'] != sample_db.is_hard:
+                        is_changed = True
+                    if gdata['is_bad'] != sample_db.is_bad:
+                        is_changed = True
+                    if gdata['is_male'] != sample_db.is_male:
+                        is_changed = True
+
+                if is_changed:
+                    args = {}
+                    args['is_hard'] = gdata['is_hard']
+                    args['is_bad'] = gdata['is_bad']
+                    args['is_male'] = gdata['is_male']
+                    args['user_id'] = user_id
+                    args['sample_id'] = sample_id
+                    args['mark_timestamp'] = utc
+
+                    # create instance
+                    user_gender_ann = GenderUserAnnotation(**args)
+                    # add to db
+                    app.db.session.add(user_gender_ann)
+                    app.db.session.flush()
+            else:
+                is_changed = False
+                if gdata['is_hard'] != user_ann_db.is_hard:
+                    is_changed = True
+                    user_ann_db.is_hard = gdata['is_hard']
+                if gdata['is_bad'] != user_ann_db.is_bad:
+                    is_changed = True
+                    user_ann_db.is_bad = gdata['is_bad']
+                if gdata['is_male'] != user_ann_db.is_male:
+                    is_changed = True
+                    user_ann_db.is_male = gdata['is_male']
+
+                user_ann_db.user_id = user_id
+                user_ann_db.mark_timestamp = utc
+
+            if is_changed:
+                n_changed += 1
+                sample_db.checked_timed = 0
+            else:
+                n_not_changed += 1
+                sample_db.checked_timed += 1
+            sample_db.is_checked = True
+            sample_db.is_send = False
+
+        print('changed: {}, not changed: {}'.format(n_changed, n_not_changed))
+
+        app.db.session.flush()
+        app.db.session.commit()
+        failed = False
+        break
 
         # delete previous annotation for this user and samples
         filt_list_of_ids = [sample_id for sample_id in filt_gender_data]
@@ -549,8 +671,7 @@ def update_gender_data():
         pass
         # flash('Failed to process.')
     else:
-        updated = deleted
-        added = accepted - deleted
+        pass
         # flash('Data successfully updated: added: {}, updated: {}, deleted: {}'.format(added, updated, deleted))
     return redirect(url_for('reannotation', problem='gender'))
 
@@ -583,7 +704,9 @@ def trigger_train_gender():
     app.db.session.flush()
     app.db.session.commit()
 
-    task = run_train.apply_async(('gender',), task_id=task_id, link_error=train_on_error.s(), link=train_on_success.s())
+    task = run_train.apply_async(('gender',), task_id=task_id,
+                                 link_error=train_on_error.s(), link=train_on_success.s(),
+                                 queue='learning')
 
     print('{} task successfully started'.format(task.id))
     return task.id
@@ -591,7 +714,7 @@ def trigger_train_gender():
 @app.route('/stop_train/<string:task_id>', methods=['GET', 'POST'])
 @login_required
 def stop_train(task_id):
-    celery.task.control.revoke(task_id, terminate=True)
+    celery.task.control.revoke(task_id, terminate=True, queue='learning')
     clear_data_for_train_task(task_id, 'REVOKED', 'Stopped')
 
     print('task {} successfully stopped'.format(task_id))
@@ -631,7 +754,9 @@ def trigger_test_gender():
     app.db.session.flush()
     app.db.session.commit()
 
-    task = run_test.apply_async(('gender',), task_id=task_id, link_error=test_on_error.s(), link=test_on_success.s())
+    task = run_test.apply_async(('gender',), task_id=task_id,
+                                link_error=test_on_error.s(), link=test_on_success.s(),
+                                queue='learning')
 
     print('{} task successfully started'.format(task.id))
     return task.id
@@ -639,7 +764,7 @@ def trigger_test_gender():
 @app.route('/stop_test/<string:task_id>', methods=['GET', 'POST'])
 @login_required
 def stop_test(task_id):
-    celery.task.control.revoke(task_id, terminate=True)
+    celery.task.control.revoke(task_id, terminate=True, queue='learning')
     clear_data_for_test_task(task_id, 'REVOKED', 'Stopped')
 
     print('task {} successfully stopped'.format(task_id))
@@ -682,8 +807,9 @@ def trigger_train_k_folds_gender():
         app.db.session.commit()
 
         task = run_train_k_folds.apply_async(('gender', k_fold), task_id=task_id,
-                                           link_error=train_k_folds_on_error.s(),
-                                           link=train_k_folds_on_success.s())
+                                             link_error=train_k_folds_on_error.s(),
+                                             link=train_k_folds_on_success.s(),
+                                             queue='learning')
         task_ids.append(task_id)
 
     print('{} tasks successfully started'.format(len(task_ids)))
@@ -695,7 +821,7 @@ def stop_train_k_folds(task_ids_str):
 
     task_ids = task_ids_str.split(',')
     for task_id in task_ids:
-        celery.task.control.revoke(task_id, terminate=True)
+        celery.task.control.revoke(task_id, terminate=True, queue='learning')
         clear_data_for_train_k_folds_task(task_id, 'REVOKED', 'Stopped')
 
     print('{} tasks successfully stopped'.format(len(task_ids)))
@@ -738,8 +864,9 @@ def trigger_test_k_folds_gender():
         app.db.session.commit()
 
         task = run_test_k_folds.apply_async(('gender', k_fold), task_id=task_id,
-                                           link_error=test_k_folds_on_error.s(),
-                                           link=test_k_folds_on_success.s())
+                                            link_error=test_k_folds_on_error.s(),
+                                            link=test_k_folds_on_success.s(),
+                                            queue='learning')
         task_ids.append(task_id)
 
     print('{} tasks successfully started'.format(len(task_ids)))
@@ -751,7 +878,7 @@ def stop_test_k_folds(task_ids_str):
 
     task_ids = task_ids_str.split(',')
     for task_id in task_ids:
-        celery.task.control.revoke(task_id, terminate=True)
+        celery.task.control.revoke(task_id, terminate=True, queue='learning')
         clear_data_for_test_k_folds_task(task_id, 'REVOKED', 'Stopped')
 
     print('{} tasks successfully stopped'.format(len(task_ids)))

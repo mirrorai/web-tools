@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from . import app
-from .script import CleanWasteModels, CleanCache
+from .script import CleanWasteModels, CleanCache, ResetSendSamples
 
 
 @app.celery.task()
@@ -16,3 +16,8 @@ def print_echo():
 def clean_waste_models():
     print('clean waste models')
     CleanWasteModels().run()
+
+@app.celery.task()
+def reset_send_samples():
+    print('reset_send_samples')
+    ResetSendSamples().run()

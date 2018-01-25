@@ -101,8 +101,7 @@ def get_test_samples(for_model_id, k_fold=None):
                         GenderSample.is_bad == False,
                         GenderSample.always_test == True)). \
             outerjoin(GenderUserAnnotation). \
-            filter(or_(and_(GenderUserAnnotation.id == None,
-                            GenderSample.is_annotated_gt),
+            filter(or_(GenderUserAnnotation.id == None,
                        and_(GenderUserAnnotation.id != None,
                             GenderUserAnnotation.is_hard == False,
                             GenderUserAnnotation.is_bad == False))).\
@@ -351,6 +350,7 @@ def compute_errors(gender_model):
             err = prob_neg if is_male else prob_pos
         else:
             err = min(prob_neg, prob_pos)
+            sample.is_male = prob_pos >= prob_neg
         sample.error = err
         sample.is_checked = False
 

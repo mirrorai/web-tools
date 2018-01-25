@@ -118,6 +118,8 @@ class GenderSample(db.Model):
 
     # is send for annotation, is checked already
     send_timestamp = db.SDColumn(ArrowType, nullable=True)
+    is_send = db.SDColumn(db.Boolean, default=False)
+
     is_checked = db.SDColumn(db.Boolean, default=False)
     checked_times = db.SDColumn(db.Integer, default=0.0)
 
