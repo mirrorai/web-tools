@@ -23,16 +23,16 @@ var GenderManager =  new function() {
 	    var is_bad = elem.find('.btn-gender-bad').is('.active');
 	    var is_hard = elem.find('.btn-gender-hard').is('.active');
 
-	    elem.removeClass('bg-info bg-warning bg-danger');
+	    elem.removeClass('sample-card-man sample-card-woman sample-card-bad');
 
 	    if(is_hard || is_bad) {
-            elem.addClass('bg-danger');
+            elem.addClass('sample-card-bad');
 	    } else {
 	        var is_male_new = (self.is_male && !changed) || (!self.is_male && changed);
 	        if(is_male_new) {
-	            elem.addClass('bg-info');
+	            elem.addClass('sample-card-man');
 	        } else {
-	            elem.addClass('bg-warning');
+	            elem.addClass('sample-card-woman');
 	        }
 	    }
 	}

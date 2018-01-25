@@ -241,12 +241,17 @@
 
 .sample-card-man {
   /*background-color: #0392cf;*/
-  background-color: #11fd11;
+  background-color: #17a2b8;
 }
 
 .sample-card-woman {
   /*background-color: #fdf498;*/
-  background-color: #fd1111;
+  background-color: #ffc107;
+}
+
+.sample-card-bad {
+  /*background-color: #fdf498;*/
+  background-color: #dc3545;
 }
 
 .sample-card .btn {

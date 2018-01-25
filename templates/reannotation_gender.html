@@ -46,7 +46,7 @@
       </form>
     </h2>
     {% for sample in ctx['samples'] %}
-        <div class="sample-card {{'bg-info' if ctx['is_male'] else 'bg-warning'}}"
+        <div class="sample-card {{'sample-card-man' if ctx['is_male'] else 'sample-card-woman'}}"
           data-sample-id="{{sample['id']}}">
           <div style="font-weight:300;text-align:center;">{{sample['error_label']}}: {{'%0.3f' % sample['error']|float}}</div>
           <img src="{{ sample['image'] }}" role="button" class="img-card">

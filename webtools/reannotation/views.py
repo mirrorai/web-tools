@@ -46,6 +46,8 @@ import numpy as np
 # Shortcuts
 db = app.db
 
+admin_permission = Permission(RoleNeed('admin'))
+
 # common functions
 def get_trigger_url_for(problem_name, problem_type):
 
@@ -226,16 +228,25 @@ def get_gender_problem_data():
     task_filter(tasks, models_count, models_k_folds_count, gender_stats['total_annotated'])
     tasks = task_to_ordered_list(tasks)
 
-    gender_problem_data = {'name_id': 'gender',
-                           'name': 'Gender',
-                           'annotation_url': url_for('reannotation', problem='gender'),
-                           'stats': gender_stats,
-                           'enabled': True,
-                           'metrics': get_last_model_gender_metrics(),
-                           'tasks': tasks}
+    if admin_permission.can():
+        gender_problem_data = {'name_id': 'gender',
+                               'name': 'Gender',
+                               'annotation_url': url_for('reannotation', problem='gender'),
+                               'stats': gender_stats,
+                               'enabled': True,
+                               'metrics': get_last_model_gender_metrics(),
+                               'tasks': tasks}
+    else:
+        gender_problem_data = {'name_id': 'gender',
+                               'name': 'Gender',
+                               'stats': gender_stats,
+                               'annotation_url': url_for('reannotation', problem='gender'),
+                               'enabled': True}
     return gender_problem_data
 
 def get_gender_stats():
+    utc = arrow.now()
+    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
 
     total = GenderSample.query.count()
 
@@ -262,6 +273,8 @@ def get_gender_stats():
         filter(and_(GenderSample.is_checked==False,
                     GenderSample.is_bad==False,
                     GenderSample.is_hard==False,
+                    or_(GenderSample.send_timestamp == None,
+                        GenderSample.send_timestamp < expected_utc),
                     and_(or_(GenderUserAnnotation.id == None,
                              and_(GenderUserAnnotation.is_hard == False,
                                   GenderUserAnnotation.is_bad == False))),
@@ -278,6 +291,8 @@ def get_gender_stats():
                     GenderSample.is_bad == False,
                     GenderSample.is_hard == False,
                     GenderUserAnnotation.id == None,
+                    or_(GenderSample.send_timestamp == None,
+                        GenderSample.send_timestamp < expected_utc),
                     GenderSample.is_annotated_gt == False,
                     GenderSample.error > new_min_error)).count()
 
@@ -347,23 +362,42 @@ def get_last_model_gender_metrics():
 
 def get_samples_for_ann():
 
+    prob_distr = np.array([0.45, 0.45, 0.1])
     max_checked_count = app.config.get('CHECKED_TIMES_MAX')
     while True:
-        # annotated images with high error and no checked before
-        # samples = get_err_gender_samples(max_checked_count=0)
-        samples, is_male = get_new_gender_samples()
-        break
-        # new images
-        #if len(samples) == 0:
-        #     samples = get_new_gender_samples()
 
-        # annotated images and checked before
-        # if len(samples) == 0:
-        #     samples = get_err_gender_samples(max_checked_count=max_checked_count)
+        sum = prob_distr.sum()
+        if sum < 1e-9:
+            break
+
+        thres = np.cumsum(prob_distr)
+        value = np.random.uniform(0, sum)
+
+        if value < thres[0]:
+            # annotated images with high error and no checked before
+            samples, is_male = get_err_gender_samples(max_checked_count=0)
+            if len(samples) > 0:
+                break
+            else:
+                prob_distr[0] = 0
+        elif value >= thres[0] and value < thres[1]:
+            samples, is_male = get_new_gender_samples()
+            if len(samples) > 0:
+                break
+            else:
+                prob_distr[1] = 0
+        elif value >= thres[1] and value < thres[2]:
+            samples, is_male = get_err_gender_samples(max_checked_count=app.config.get('CHECKED_TIMES_MAX'))
+            if len(samples) > 0:
+                break
+            else:
+                prob_distr[2] = 0
 
     return samples, is_male
 
 def get_new_gender_samples():
+    utc = arrow.now()
+    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
     is_male_global = random.randint(0, 1)
     min_error = app.config.get('NEW_SAMPLES_MIN_ERROR')
 
@@ -375,6 +409,8 @@ def get_new_gender_samples():
                         GenderSample.is_checked == False,
                         GenderSample.is_hard == False,  # no bad or hard samples
                         GenderSample.is_bad == False,
+                        or_(GenderSample.send_timestamp == None,
+                            GenderSample.send_timestamp < expected_utc),
                         GenderSample.is_male == is_male_global)). \
             outerjoin(GenderUserAnnotation). \
             filter(and_(GenderUserAnnotation.id == None,  # no gt and user annotation
@@ -384,7 +420,6 @@ def get_new_gender_samples():
             break
         is_male_global = not is_male_global
 
-    print(len(ann))
     utc = arrow.now()
     samples_data = []
     for sample, is_male in ann:
@@ -407,6 +442,9 @@ def get_new_gender_samples():
 
 def get_err_gender_samples(max_checked_count=0):
 
+    utc = arrow.now()
+    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
+
     is_male_global = random.randint(0, 1)
 
     min_error = app.config.get('SAMPLES_MIN_ERROR')
@@ -419,6 +457,8 @@ def get_err_gender_samples(max_checked_count=0):
             filter(and_(GenderSample.error > min_error,
                         GenderSample.is_male == is_male_global,
                         GenderSample.checked_times <= max_checked_count,
+                        or_(GenderSample.send_timestamp == None,
+                            GenderSample.send_timestamp < expected_utc),
                         GenderSample.is_checked == False,
                         GenderSample.is_hard == False,  # no bad or hard samples
                         GenderSample.is_bad == False)). \
@@ -521,6 +561,7 @@ def reannotation(problem):
 @login_required
 @nocache
 def metrics(problem):
+    admin_permission.test(403)
     if problem not in ['gender']:
         abort(404)
     ctx = {'ts': int(time.time())}
@@ -608,10 +649,10 @@ def update_gender_data():
 
             if is_changed:
                 n_changed += 1
-                sample_db.checked_timed = 0
+                sample_db.checked_times = 0
             else:
                 n_not_changed += 1
-                sample_db.checked_timed += 1
+                sample_db.checked_times += 1
             sample_db.is_checked = True
             sample_db.is_send = False
 
@@ -680,6 +721,7 @@ def update_gender_data():
 @login_required
 @nocache
 def trigger_train(problem_name):
+    admin_permission.test(403)
     if problem_name == 'gender':
         task_id = trigger_train_gender()
         if task_id is None:
@@ -715,6 +757,7 @@ def trigger_train_gender():
 @app.route('/stop_train/<string:task_id>', methods=['GET', 'POST'])
 @login_required
 def stop_train(task_id):
+    admin_permission.test(403)
     celery.task.control.revoke(task_id, terminate=True, queue='learning')
     clear_data_for_train_task(task_id, 'REVOKED', 'Stopped')
 
@@ -727,6 +770,7 @@ def stop_train(task_id):
 @login_required
 @nocache
 def trigger_test(problem_name):
+    admin_permission.test(403)
     if problem_name == 'gender':
         task_id = trigger_test_gender()
         if task_id is None:
@@ -765,6 +809,7 @@ def trigger_test_gender():
 @app.route('/stop_test/<string:task_id>', methods=['GET', 'POST'])
 @login_required
 def stop_test(task_id):
+    admin_permission.test(403)
     celery.task.control.revoke(task_id, terminate=True, queue='learning')
     clear_data_for_test_task(task_id, 'REVOKED', 'Stopped')
 
@@ -778,6 +823,7 @@ def stop_test(task_id):
 @login_required
 @nocache
 def trigger_train_k_folds(problem_name):
+    admin_permission.test(403)
     if problem_name == 'gender':
         task_ids = trigger_train_k_folds_gender()
         if task_ids is None:
@@ -819,7 +865,7 @@ def trigger_train_k_folds_gender():
 @app.route('/stop_train_k_folds/<string:task_ids_str>', methods=['GET', 'POST'])
 @login_required
 def stop_train_k_folds(task_ids_str):
-
+    admin_permission.test(403)
     task_ids = task_ids_str.split(',')
     for task_id in task_ids:
         celery.task.control.revoke(task_id, terminate=True, queue='learning')
@@ -835,6 +881,7 @@ def stop_train_k_folds(task_ids_str):
 @login_required
 @nocache
 def trigger_test_k_folds(problem_name):
+    admin_permission.test(403)
     if problem_name == 'gender':
         task_ids = trigger_test_k_folds_gender()
         if task_ids is None:
@@ -876,7 +923,7 @@ def trigger_test_k_folds_gender():
 @app.route('/stop_test_k_folds/<string:task_ids_str>', methods=['GET', 'POST'])
 @login_required
 def stop_test_k_folds(task_ids_str):
-
+    admin_permission.test(403)
     task_ids = task_ids_str.split(',')
     for task_id in task_ids:
         celery.task.control.revoke(task_id, terminate=True, queue='learning')
@@ -899,7 +946,7 @@ def image(id, minside, maxside):
 @app.route('/task_status/<task_id>')
 @login_required
 def task_status(task_id):
-
+    admin_permission.test(403)
     task = run_train.AsyncResult(task_id)
     if task.state == 'PENDING':
         # job did not start yet
@@ -972,6 +1019,7 @@ def get_task_status(task_id):
 @app.route('/status/')
 @login_required
 def status():
+    admin_permission.test(403)
     current_tasks = LearningTask.query.all()
     response = {}
     for db_task in current_tasks:

@@ -293,7 +293,7 @@ class ResetSendSamples(Command):
     @staticmethod
     def reset_send():
         utc = arrow.now()
-        expected = utc.shift(minutes=-10)
+        expected = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
         t = GenderSample.query.filter(and_(GenderSample.send_timestamp<expected,
                                        GenderSample.is_send)).update(dict(is_send=False), synchronize_session='fetch')
         app.db.session.commit()

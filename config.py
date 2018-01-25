@@ -40,6 +40,7 @@ class Config(object):
     CHECKED_TIMES_MAX = 5
     SAMPLES_MIN_ERROR = 0.5
     NEW_SAMPLES_MIN_ERROR = 0.2
+    SEND_EXPIRE_MIN = 4
 
     GPU_IDS = [1,2,3]
 
@@ -85,12 +86,12 @@ class Config(object):
     CELERYBEAT_SCHEDULE = {
         'print_echo_every_10_minutes': {
             'task': 'webtools.cron_tasks.print_echo',
-            'schedule': timedelta(seconds=10)
-        },
-        'reset_send_every_10_minutes': {
-            'task': 'webtools.cron_tasks.reset_send_samples',
             'schedule': timedelta(minutes=10)
         },
+        # 'reset_send_every_10_minutes': {
+        #     'task': 'webtools.cron_tasks.reset_send_samples',
+        #     'schedule': timedelta(minutes=10)
+        # },
         'clean_waste_models_every_1_hour': {
             'task': 'webtools.cron_tasks.clean_waste_models',
             'schedule': timedelta(hours=1)
@@ -146,7 +147,7 @@ class StagingConfig(Config):
 class ProductionConfig(Config):
     # Environment
     PRODUCTION = True
-    SERVER_NAME = 'webtools.mirror-ai.com'
+    # SERVER_NAME = 'webtools.mirror-ai.com'
 
     # Logging
     LOG_LEVEL = logging.INFO
