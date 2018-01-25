@@ -35,3 +35,5 @@ trainroom/**/visualization
 trainroom/**/snapshots
 trainroom/**/output
 trainroom/**/exps/exp*
+
+*.DS_Store
