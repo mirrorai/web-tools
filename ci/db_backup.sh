@@ -21,5 +21,5 @@ TIME_NOW=$(date +"%Y_%m_%d_%H_%M_%S")
 FOLDER=/home/local/database/backup
 mkdir -p ${FOLDER}
 DB_DUMP_PATH=${FOLDER}/backup_${TIME_NOW}.sql
-mysqldump -u root -pMug0aenoPhi5koh4 medicine > ${DB_DUMP_PATH}
+mysqldump -u root -p${MYSQL_PASS} ${MYSQL_DBNAME} > ${DB_DUMP_PATH}
 echo "saved to ${DB_DUMP_PATH}"

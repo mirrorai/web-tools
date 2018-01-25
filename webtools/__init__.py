@@ -4,7 +4,7 @@
 # https://github.com/hansonkd/FlaskBootstrapSecurity
 
 import logging
-
+from threading import Lock
 import os
 
 flask_app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -133,6 +133,9 @@ class ArrowJSONEncoder(JSONEncoder):
         return JSONEncoder.default(self, obj)
 
 app.json_encoder = ArrowJSONEncoder
+
+app.gpu_lock = Lock()
+app.db_lock = Lock()
 
 # Populating views and models from modules
 from . import models

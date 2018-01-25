@@ -95,7 +95,7 @@ def cfg_fix_paths(cfg, exp_dir):
     if cfg.TEST.DEBUG_IMAGES:
         cfg.TEST.DEBUG_IMAGES = join(exp_dir, cfg.TEST.DEBUG_IMAGES)
 
-def test(ctx, snapshot, epoch, samples, exp_dir):
+def test(ctx, snapshot, epoch, samples, exp_dir, gpu_id=None):
 
     cfg_file = join(exp_dir, 'config.yml')
     cfg_from_file(cfg_file)
@@ -109,6 +109,8 @@ def test(ctx, snapshot, epoch, samples, exp_dir):
 
     if cfg.GPU_ID == -1:
         devices = mx.cpu()
+    elif gpu_id is not None:
+        devices = mx.gpu(gpu_id)
     else:
         devices = mx.gpu(cfg.GPU_ID)
 

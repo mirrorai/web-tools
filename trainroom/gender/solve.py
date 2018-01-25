@@ -25,7 +25,7 @@ def cfg_fix_paths(cfg, exp_dir, model_dir):
     if cfg.TRAIN.PRETRAINED:
         cfg.TRAIN.PRETRAINED = join(model_dir, cfg.TRAIN.PRETRAINED)
 
-def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False):
+def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False, gpu_id=None):
 
     snapshots_dir = join(exp_dir, 'snapshots')
     if not isdir(snapshots_dir):
@@ -38,6 +38,8 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False)
 
     if cfg.GPU_ID == -1:
         devices = mx.cpu()
+    elif gpu_id is not None:
+        devices = mx.gpu(gpu_id)
     else:
         devices = mx.gpu(cfg.GPU_ID)
 

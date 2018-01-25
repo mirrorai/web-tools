@@ -338,10 +338,11 @@ def get_last_model_gender_metrics():
             item['error_reduction'] = 0.0
             if len(models) > 1:
                 prev_accuracy = models[1].accuracy
-                cur_error = 1 - cur_accuracy
-                prev_error = 1 - prev_accuracy
-                reduction = prev_error / cur_error if cur_error > 1e-12 else 1.0
-                item['error_reduction'] = reduction
+                if prev_accuracy is not None:
+                    cur_error = 1 - cur_accuracy
+                    prev_error = 1 - prev_accuracy
+                    reduction = prev_error / cur_error if cur_error > 1e-12 else 1.0
+                    item['error_reduction'] = reduction
         return item
 
 def get_samples_for_ann():

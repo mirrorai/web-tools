@@ -1,1 +1,2 @@
-mysql -u root -pMug0aenoPhi5koh4 --execute="drop database if exists webtools; create database webtools character set utf8;"
+mysql -u root -p${MYSQL_PASS} \
+    --execute="drop database if exists ${MYSQL_DBNAME}; create database ${MYSQL_DBNAME} character set utf8;"

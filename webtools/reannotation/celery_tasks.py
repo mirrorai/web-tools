@@ -7,11 +7,15 @@ from os.path import join, isdir
 from os import mkdir, makedirs
 from sqlalchemy import func, or_, and_, desc, not_
 from models import GenderSample, LearningTask, LearnedModel, AccuracyMetric, GenderUserAnnotation, GenderSampleResult
+from models import GPUStatus
 from shutil import copyfile
 from ..utils import add_path
 from sqlalchemy.sql.expression import case
 import sys
 import arrow
+from threading import Lock
+
+mylock = Lock()
 
 import numpy as np
 
@@ -151,28 +155,34 @@ def get_train_samples(k_fold=None):
 
 def update_gender_cv_partition():
 
-    n_samples = GenderSample.query \
-        .filter_by(always_test=False,k_fold=None).count()
+    with app.db_lock:
+        n_samples = GenderSample.query \
+            .filter_by(always_test=False,k_fold=None).count()
+        if n_samples == 0:
+            return
 
-    k_folds = app.config.get('CV_PARTITION_FOLDS')
+        k_folds = app.config.get('CV_PARTITION_FOLDS')
 
-    # partition number for each fold
-    bins = [int(n_samples / k_folds) for i in range(k_folds)]
-    rest = n_samples - sum(bins)
-    for i in range(rest):
-        bins[i] += 1
-    random.shuffle(bins)
-    for k_fold in range(k_folds):
-        cnt = bins[k_fold]
-        subset = GenderSample.query \
-            .filter_by(always_test=False,k_fold=None) \
-            .order_by(func.random())\
-            .limit(cnt).with_entities(GenderSample.id)
-        subset_to_update = GenderSample.query.filter(GenderSample.id.in_(subset))
-        subset_to_update.update(dict(k_fold=k_fold), synchronize_session='fetch')
-        app.db.session.flush()
+        # partition number for each fold
+        bins = [int(n_samples / k_folds) for i in range(k_folds)]
+        rest = n_samples - sum(bins)
+        for i in range(rest):
+            bins[i] += 1
+        random.shuffle(bins)
+        for k_fold in range(k_folds):
+            cnt = bins[k_fold]
+            subset = GenderSample.query \
+                .filter_by(always_test=False,k_fold=None) \
+                .order_by(func.random())\
+                .limit(cnt).all()
+            for s in subset:
+                s.k_fold = k_fold
+            # subset_to_update = GenderSample.query.filter(GenderSample.id.in_(subset))
+            # subset_to_update = GenderSample.query.join(subset, GenderSample.id==subset.c.id)
+            # subset_to_update.update(dict(k_fold=k_fold), synchronize_session='fetch')
+            app.db.session.flush()
 
-    app.db.session.commit()
+        app.db.session.commit()
 
 # train
 @app.celery.task(bind=True)
@@ -189,60 +199,68 @@ def run_train(self, taskname):
 
 def run_gender_train(updater, task_id, k_fold=None):
 
-    updater.update_state(state='PROGRESS', progress=0.005, status='Preparing samples for training..')
+    updater.update_state(state='PROGRESS', progress=0.01, status='Waiting available gpu..')
+    gpu_id = wait_available_gpu(task_id)
+
+    updater.update_state(state='PROGRESS', progress=0.01, status='Preparing samples for training..')
 
     samples = get_train_samples(k_fold=k_fold)
     print('number of samples: {}'.format(len(samples)))
 
     if len(samples) == 0:
         updater.update_state(state='FAILURE', progress=1.0, status='No samples to train on')
-        updater.finish(arrow.now())
-        return None
+        model_id = None
+    else:
+        updater.update_state(state='PROGRESS', progress=0.01, status='Preparing training scripts..')
+        updater.push_rescale(0.01, 0.99)
 
-    updater.update_state(state='PROGRESS', progress=0.01, status='Preparing training scripts..')
-    updater.push_rescale(0.01, 0.99)
+        # create model
+        gender_model = LearnedModel(task_id=task_id, problem_name='gender')
+        app.db.session.add(gender_model)
+        app.db.session.flush()
+        exp_num = gender_model.id
 
-    # create model
-    gender_model = LearnedModel(task_id=task_id, problem_name='gender')
-    app.db.session.add(gender_model)
-    app.db.session.flush()
-    exp_num = gender_model.id
+        trainroom_dir = app.config.get('TRAINROOM_FOLDER')
+        trainroom_gender = join(trainroom_dir, 'gender')
 
-    trainroom_dir = app.config.get('TRAINROOM_FOLDER')
-    trainroom_gender = join(trainroom_dir, 'gender')
+        # prepare experiment directory
+        exp_fold = 'fold{}'.format(k_fold) if k_fold is not None else 'main'
+        exp_dir = join(trainroom_gender, 'exps', 'exp{}_{}'.format(exp_num, exp_fold))
+        exp_base = join(trainroom_gender, 'exps', 'base_exp')
 
-    # prepare experiment directory
-    exp_fold = 'fold{}'.format(k_fold) if k_fold is not None else 'main'
-    exp_dir = join(trainroom_gender, 'exps', 'exp{}_{}'.format(exp_num, exp_fold))
-    exp_base = join(trainroom_gender, 'exps', 'base_exp')
+        # copy scripts for training
+        if not isdir(exp_dir):
+            makedirs(exp_dir)
+        copyfile(join(exp_base, 'config.yml'), join(exp_dir, 'config.yml'))
+        copyfile(join(exp_base, 'get_model.py'), join(exp_dir, 'get_model.py'))
+        copyfile(join(exp_base, 'get_optimizer_params.py'), join(exp_dir, 'get_optimizer_params.py'))
 
-    # copy scripts for training
-    if not isdir(exp_dir):
-        makedirs(exp_dir)
-    copyfile(join(exp_base, 'config.yml'), join(exp_dir, 'config.yml'))
-    copyfile(join(exp_base, 'get_model.py'), join(exp_dir, 'get_model.py'))
-    copyfile(join(exp_base, 'get_optimizer_params.py'), join(exp_dir, 'get_optimizer_params.py'))
+        # run training
+        with add_path(trainroom_gender):
+            solve_module = __import__('solve')
+            snapshot_prefix, epoch = solve_module.solve(updater, samples, [], trainroom_dir, exp_dir, gpu_id=gpu_id)
+            del sys.modules['solve']
 
-    # run training
-    with add_path(trainroom_gender):
-        solve_module = __import__('solve')
-        snapshot_prefix, epoch = solve_module.solve(updater, samples, [], trainroom_dir, exp_dir)
-        del sys.modules['solve']
+        # udpate model in db
+        model = LearnedModel.query.filter_by(task_id=task_id,problem_name='gender').first()
+        model.exp_dir = exp_dir
+        model.prefix = snapshot_prefix
+        model.epoch = epoch
+        if k_fold is not None:
+            model.k_fold = k_fold
+        model.finished_ts = arrow.now()
+        app.db.session.flush()
+        app.db.session.commit()
 
-    # udpate model in db
-    model = LearnedModel.query.filter_by(task_id=task_id,problem_name='gender').first()
-    model.exp_dir = exp_dir
-    model.prefix = snapshot_prefix
-    model.epoch = epoch
-    if k_fold is not None:
-        model.k_fold = k_fold
-    model.finished_ts = arrow.now()
-    app.db.session.flush()
-    app.db.session.commit()
+        updater.pop_rescale()
 
-    updater.pop_rescale()
+        model_id = model.id
 
-    return model.id
+    updater.update_state(state='PROGRESS', progress=1.0, status='Releasing GPU..')
+    release_gpu(task_id)
+    updater.finish(arrow.now())
+
+    return model_id
 
 @app.celery.task
 def train_on_error(uuid):
@@ -267,6 +285,8 @@ def clear_data_for_train_task(uuid, state, status):
     gender_model.delete()
     app.db.session.flush()
     app.db.session.commit()
+
+    release_gpu(uuid)
 
 # test
 def compute_gender_metrics(gender_model, update_state=True):
@@ -384,7 +404,7 @@ def run_test(self, taskname):
             updater.push_rescale(shift, scale)
             updater.push_prefix('Model [{}/{}] '.format(idx + 1, num_models))
 
-            run_gender_test(updater, gender_model)
+            run_gender_test(updater, self.request.id, gender_model)
 
             updater.update_state(state='PROGRESS', progress=1.0,
                                  status='Computing metrics..')
@@ -413,7 +433,10 @@ def run_test(self, taskname):
         print('uknown taskname: {}'.format(taskname))
         return dump_result()
 
-def run_gender_test(updater, gender_model):
+def run_gender_test(updater, task_id, gender_model):
+
+    updater.update_state(state='PROGRESS', progress=0.01, status='Waiting available gpu..')
+    gpu_id = wait_available_gpu(task_id)
 
     updater.update_state(state='PROGRESS', progress=0.01, status='Preparing samples for testing..')
     samples = get_test_samples(gender_model.id, k_fold=gender_model.k_fold)
@@ -421,37 +444,39 @@ def run_gender_test(updater, gender_model):
 
     if len(samples) == 0:
         updater.update_state(state='PROGRESS', progress=1.0, status='No samples to test')
-        return None
+    else:
+        # run training
+        trainroom_dir = app.config.get('TRAINROOM_FOLDER')
+        trainroom_gender = join(trainroom_dir, 'gender')
 
-    # run training
-    trainroom_dir = app.config.get('TRAINROOM_FOLDER')
-    trainroom_gender = join(trainroom_dir, 'gender')
+        snapshot = str(gender_model.prefix)
+        epoch = gender_model.epoch
+        exp_dir = str(gender_model.exp_dir)
 
-    snapshot = str(gender_model.prefix)
-    epoch = gender_model.epoch
-    exp_dir = str(gender_model.exp_dir)
+        updater.push_rescale(0.01, 0.99)
+        with add_path(trainroom_gender):
+            test_module = __import__('test')
+            metric_data, pr_probs = test_module.test(updater, snapshot, epoch, samples, exp_dir, gpu_id=gpu_id)
+            del sys.modules['test']
 
-    updater.push_rescale(0.01, 0.99)
-    with add_path(trainroom_gender):
-        test_module = __import__('test')
-        metric_data, pr_probs = test_module.test(updater, snapshot, epoch, samples, exp_dir)
-        del sys.modules['test']
+        updater.pop_rescale()
 
-    updater.pop_rescale()
+        updater.update_state(state='PROGRESS', progress=1.0,
+                             status='Storing results..')
 
-    updater.update_state(state='PROGRESS', progress=1.0,
-                         status='Storing results..')
+        assert(len(samples) == pr_probs.shape[0])
+        for i in range(len(samples)):
+            pr_prob = pr_probs[i,:]
+            prob_neg = pr_prob[0]
+            prob_pos = pr_prob[1]
+            sample_id = samples[i][2]
+            result_sample = GenderSampleResult(sample_id=sample_id,
+                                               model_id=gender_model.id, prob_neg=prob_neg, prob_pos=prob_pos)
+            app.db.session.add(result_sample)
+            app.db.session.flush()
 
-    assert(len(samples) == pr_probs.shape[0])
-    for i in range(len(samples)):
-        pr_prob = pr_probs[i,:]
-        prob_neg = pr_prob[0]
-        prob_pos = pr_prob[1]
-        sample_id = samples[i][2]
-        result_sample = GenderSampleResult(sample_id=sample_id,
-                                           model_id=gender_model.id, prob_neg=prob_neg, prob_pos=prob_pos)
-        app.db.session.add(result_sample)
-        app.db.session.flush()
+    updater.update_state(state='PROGRESS', progress=1.0, status='Releasing GPU..')
+    release_gpu(task_id)
 
 @app.celery.task
 def test_on_error(uuid):
@@ -471,6 +496,8 @@ def clear_data_for_test_task(uuid, state, status):
     tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
     app.db.session.flush()
     app.db.session.commit()
+
+    release_gpu(uuid)
 
 # train k-folds
 @app.celery.task(bind=True)
@@ -510,6 +537,8 @@ def clear_data_for_train_k_folds_task(uuid, state, status):
     app.db.session.flush()
     app.db.session.commit()
 
+    release_gpu(uuid)
+
 # test k-folds
 @app.celery.task(bind=True)
 def run_test_k_folds(self, taskname, k_fold):
@@ -522,7 +551,7 @@ def run_test_k_folds(self, taskname, k_fold):
 
         if gender_model:
 
-            run_gender_test(updater, gender_model)
+            run_gender_test(updater, self.request.id, gender_model)
 
             updater.update_state(state='PROGRESS', progress=1.0,
                                  status='Computing metrics..')
@@ -562,3 +591,53 @@ def clear_data_for_test_k_folds_task(uuid, state, status):
     tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
     app.db.session.flush()
     app.db.session.commit()
+
+    release_gpu(uuid)
+
+def wait_available_gpu(task_id):
+
+    print('get gpu')
+    gpu_ids = app.config.get('GPU_IDS')
+    while True:
+        selected_gpu = None
+        with app.gpu_lock:
+            status_data = app.db.session.query(GPUStatus).filter(GPUStatus.gpu_id.in_(gpu_ids)).all()
+            status_data = {s.gpu_id:s for s in status_data}
+            random.shuffle(gpu_ids)
+
+            # get first random available gpu
+            for gpu_id in gpu_ids:
+                if gpu_id in status_data:
+                    if not status_data[gpu_id].use:
+                        status_data[gpu_id].use=True
+                        status_data[gpu_id].task_id=task_id
+                        selected_gpu = gpu_id
+                        break
+                else:
+                    gpu_status = GPUStatus(gpu_id=gpu_id,task_id=task_id,use=True)
+                    app.db.session.add(gpu_status)
+                    selected_gpu = gpu_id
+                    break
+
+            app.db.session.flush()
+            app.db.session.commit()
+
+        if selected_gpu is None:
+            print('not found, wait for 10 seconds..')
+            time.sleep(10)
+        else:
+            break
+
+    print('found available gpu: {}'.format(selected_gpu))
+
+    return selected_gpu
+
+def release_gpu(task_id):
+    print('release gpu')
+    with app.gpu_lock:
+        a = GPUStatus.query.filter_by(task_id=task_id).update(dict(use=0))
+        print('release {} gpus'.format(a))
+        app.db.session.flush()
+        app.db.session.commit()
+
+    return True

@@ -41,6 +41,8 @@ class Config(object):
     SAMPLES_MIN_ERROR = 0.5
     NEW_SAMPLES_MIN_ERROR = 0.2
 
+    GPU_IDS = [1,2,3]
+
     # Mail sending
     MAIL_NO_REPLY_SENDER = '{} < no-reply-{}@mirror-ai.com >'.format(SITE_NAME, SITE_NAME.lower())
     MAIL_DEFAULT_SENDER = MAIL_NO_REPLY_SENDER
@@ -120,8 +122,10 @@ class DevelopmentConfig(Config):
     LIMIT_IMAGES_LOAD = 2000
 
     # SqlAlchemy
-    # SQLALCHEMY_DATABASE_URI = 'mysql://root:Mug0aenoPhi5koh4@localhost/medicine_dev'
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'database/webtools.db')
+    MYSQL_PASS = os.environ.get('MYSQL_PASS')
+    MYSQL_DBNAME = os.environ.get('MYSQL_DBNAME')
+    SQLALCHEMY_DATABASE_URI = 'mysql://root:{}@localhost/{}'.format(MYSQL_PASS, MYSQL_DBNAME)
+    # SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, 'database/webtools.db')
 
 class StagingConfig(Config):
     CONFIG_TAG = ('[S]', 'Staging')
@@ -135,9 +139,9 @@ class StagingConfig(Config):
     IMAGE_CACHE_FOLDER = '__NOT_SET__'
 
     # SqlAlchemy
-    MYSQL_LOGIN = os.environ.get('MYSQL_LOGIN')
     MYSQL_PASS = os.environ.get('MYSQL_PASS')
-    SQLALCHEMY_DATABASE_URI = 'mysql://{}:{}@localhost/webtools_staging'.format(MYSQL_LOGIN, MYSQL_PASS)
+    MYSQL_DBNAME = os.environ.get('MYSQL_DBNAME')
+    SQLALCHEMY_DATABASE_URI = 'mysql://root:{}@localhost/{}'.format(MYSQL_PASS, MYSQL_DBNAME)
 
 class ProductionConfig(Config):
     # Environment
@@ -152,9 +156,9 @@ class ProductionConfig(Config):
     IMAGE_CACHE_FOLDER = '__NOT_SET__'
 
     # SqlAlchemy
-    MYSQL_LOGIN = os.environ.get('MYSQL_LOGIN')
     MYSQL_PASS = os.environ.get('MYSQL_PASS')
-    SQLALCHEMY_DATABASE_URI = 'mysql://{}:{}@localhost/webtools'.format(MYSQL_LOGIN, MYSQL_PASS)
+    MYSQL_DBNAME = os.environ.get('MYSQL_DBNAME')
+    SQLALCHEMY_DATABASE_URI = 'mysql://root:{}@localhost/{}'.format(MYSQL_PASS, MYSQL_DBNAME)
 
     # Queue agent
     QUEUE_AGENT_DEFAULT_BRANCH = 'production'

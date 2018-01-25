@@ -201,3 +201,9 @@ class GenderUserAnnotation(db.Model):
     is_bad = db.SDColumn(db.Boolean, default=False)
 
     mark_timestamp = db.SDColumn(ArrowType)
+
+class GPUStatus(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+    gpu_id = db.SDColumn(db.Integer, unique=True)
+    task_id = db.SDColumn(db.String(64))
+    use = db.SDColumn(db.Boolean, default=False)

@@ -66,7 +66,7 @@ apt-get install uwsgi-plugin-python
 /etc/init.d/mysql stop
 
 # start mysql
-/etc/init.d /mysql start
+/etc/init.d/mysql start
 
 # restart mysql
 /etc/init.d/mysql restart
