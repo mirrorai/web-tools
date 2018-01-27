@@ -370,6 +370,7 @@ def compute_errors(gender_model):
             sample.is_male = prob_pos >= prob_neg
         sample.error = err
         sample.is_checked = False
+        sample.is_changed = False
 
     app.db.session.flush()
     app.db.session.commit()

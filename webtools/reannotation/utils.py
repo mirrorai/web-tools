@@ -27,3 +27,14 @@ def get_learned_models_count(problem_name, k_folds=False):
                                                 LearnedModel.k_fold!=None,
                                                 LearnedModel.finished_ts!=None))
     return models.count()
+
+def get_finished_time_task(problem_name, problem_type):
+    task =  LearningTask.query. \
+               filter_by(problem_type=problem_type, problem_name=problem_name) \
+               .first()
+    if task is None:
+        return None
+    elif task.finished_ts is None:
+        return None
+    else:
+        return task.finished_ts

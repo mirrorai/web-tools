@@ -44,7 +44,11 @@ class Config(object):
     SEND_EXPIRE_MIN = 4
     KEEP_TOP_MODELS_CNT = 3
 
-    GPU_IDS = [1,2,3]
+    TRIGGER_TRAIN_MIN_SAMPLES = 1000
+    TRIGGER_TRAIN_MAX_HOURS = 24
+    TRIGGER_TEST_MIN_MINUTES = 30
+
+    GPU_IDS = [3]
 
     # Mail sending
     MAIL_NO_REPLY_SENDER = '{} < no-reply-{}@mirror-ai.com >'.format(SITE_NAME, SITE_NAME.lower())
@@ -104,9 +108,9 @@ class Config(object):
             'task': 'webtools.reannotation.cron_tasks.auto_training',
             'schedule': timedelta(minutes=5)
         },
-        'auto_test_check_every_15_minutes': {
+        'auto_test_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing',
-            'schedule': timedelta(minutes=15)
+            'schedule': timedelta(minutes=1)
         },
         'annotation_statistics': {
             'task': 'webtools.reannotation.cron_tasks.annotation_statistics',

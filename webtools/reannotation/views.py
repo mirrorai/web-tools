@@ -690,6 +690,7 @@ def update_gender_data():
                 n_changed += 1
                 sample_db.checked_times = 0
                 sample_db.changed_ts = utc
+                sample_db.is_changed = True
             else:
                 n_not_changed += 1
                 sample_db.checked_times += 1
