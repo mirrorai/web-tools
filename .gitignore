@@ -28,12 +28,14 @@ celerybeat-schedule
 database
 *.db
 
-bin/init_env.sh
+ci/init_env.sh
 *.params
 trainroom/**/*.png
 trainroom/**/visualization
 trainroom/**/snapshots
 trainroom/**/output
 trainroom/**/exps/exp*
+
+migrations/versions
 
 *.DS_Store

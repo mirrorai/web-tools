@@ -47,6 +47,7 @@ import numpy as np
 db = app.db
 
 admin_permission = Permission(RoleNeed('admin'))
+moderator_permission = Permission(RoleNeed('moderator'))
 
 # common functions
 def get_trigger_url_for(problem_name, problem_type):
@@ -114,8 +115,14 @@ def get_learning_tasks(problem_name):
 
         if problem_type not in resp_map:
             problem_type_item = {}
-            problem_type_item['start_url'] = get_trigger_url_for(problem_name, problem_type)
-            problem_type_item['stop_url'] = get_stop_url_for(problem_type, db_task.task_id)
+
+            if admin_permission.can():
+                problem_type_item['start_url'] = get_trigger_url_for(problem_name, problem_type)
+                problem_type_item['stop_url'] = get_stop_url_for(problem_type, db_task.task_id)
+            else:
+                problem_type_item['start_url'] = '#'
+                problem_type_item['stop_url'] = '#'
+
             problem_type_item['label'] = labels_map[problem_type]
             problem_type_item['order'] = order_map[problem_type]
             problem_type_item['is_finished'] = item['finished_ts'] != None
@@ -128,14 +135,20 @@ def get_learning_tasks(problem_name):
     for problem_type in resp_map:
         if len(resp_map[problem_type]['tasks']) > 1:
             task_ids = ','.join([item['task_id'] for item in resp_map[problem_type]['tasks']])
-            resp_map[problem_type]['stop_url'] = get_stop_url_for(problem_type, task_ids)
+            if admin_permission.can():
+                resp_map[problem_type]['stop_url'] = get_stop_url_for(problem_type, task_ids)
+            else:
+                resp_map[problem_type]['stop_url'] = '#'
             resp_map[problem_type]['tasks'] = sorted(resp_map[problem_type]['tasks'],key=lambda x: x['k_fold'])
 
     problem_types_all = ['train', 'test', 'train_k_folds', 'test_k_folds', 'deploy']
     for problem_type in problem_types_all:
         if problem_type not in resp_map:
             item = {}
-            item['start_url'] = get_trigger_url_for(problem_name, problem_type)
+            if admin_permission.can():
+                item['start_url'] = get_trigger_url_for(problem_name, problem_type)
+            else:
+                item['start_url'] = '#'
             item['stop_url'] = '#'
             item['label'] = labels_map[problem_type]
             item['order'] = order_map[problem_type]
@@ -228,7 +241,7 @@ def get_gender_problem_data():
     task_filter(tasks, models_count, models_k_folds_count, gender_stats['total_annotated'])
     tasks = task_to_ordered_list(tasks)
 
-    if admin_permission.can():
+    if moderator_permission.can():
         gender_problem_data = {'name_id': 'gender',
                                'name': 'Gender',
                                'annotation_url': url_for('reannotation', problem='gender'),
@@ -246,7 +259,7 @@ def get_gender_problem_data():
 
 def get_gender_stats():
     utc = arrow.now()
-    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
+    expected_utc = utc.shift(minutes=app.config.get('SEND_EXPIRE_MIN'))
 
     total = GenderSample.query.count()
 
@@ -313,7 +326,8 @@ def get_gender_stats():
 
 def get_gender_metrics():
     problem_name = 'gender'
-    models = app.db.session.query(LearnedModel.id,LearnedModel.finished_ts,AccuracyMetric.accuracy).\
+    models = app.db.session.query(LearnedModel.id,LearnedModel.finished_ts,
+                                  LearnedModel.num_samples,AccuracyMetric.accuracy).\
         filter(and_(LearnedModel.k_fold==None,
                     LearnedModel.problem_name==problem_name,
                     LearnedModel.finished_ts!=None)).\
@@ -326,6 +340,7 @@ def get_gender_metrics():
         item = {}
         item['model_id'] = m.id
         item['finished_ts'] = m.finished_ts.format('YYYY-MM-DD HH:mm:ss')
+        item['num_samples'] = m.num_samples
         item['metrics_values'] = [m.accuracy]
         metrics_data['data'].append(item)
 
@@ -362,43 +377,85 @@ def get_last_model_gender_metrics():
 
 def get_samples_for_ann():
 
-    prob_distr = np.array([0.45, 0.45, 0.1])
+    prob_distr = np.array([0.4, 0.4, 0.2])
     max_checked_count = app.config.get('CHECKED_TIMES_MAX')
+
+    samples_out = []
+    is_male_out = None
+    target_count = 21
+    changed_gender = False
+
+    start = time.time()
     while True:
 
         sum = prob_distr.sum()
-        if sum < 1e-9:
+        if sum < 1e-9 and len(samples_out) > 0:
             break
+        elif sum < 1e-9 and len(samples_out) == 0 and changed_gender:
+            break
+        elif sum < 1e-9 and len(samples_out) == 0:
+            changed_gender = True
+            is_male_out = not is_male_out
 
         thres = np.cumsum(prob_distr)
         value = np.random.uniform(0, sum)
 
         if value < thres[0]:
             # annotated images with high error and no checked before
-            samples, is_male = get_err_gender_samples(max_checked_count=0)
-            if len(samples) > 0:
-                break
-            else:
+            limit = target_count - len(samples_out)
+            samples, is_male = get_err_gender_samples(max_checked_count=0, limit=limit, is_male_spec=is_male_out)
+            is_male_out = is_male if is_male_out is None else is_male_out
+
+            if len(samples) < limit:
                 prob_distr[0] = 0
+
+            print('is_male={} n={}: error samples with no previous check'.format(int(is_male_out), len(samples)))
+            samples_out.extend(samples)
+
+            if len(samples_out) == target_count:
+                break
+
         elif value >= thres[0] and value < thres[1]:
-            samples, is_male = get_new_gender_samples()
-            if len(samples) > 0:
-                break
-            else:
+
+            # annotated images with high error and no checked before
+            limit = target_count - len(samples_out)
+            samples, is_male = get_new_gender_samples(limit=limit, is_male_spec=is_male_out)
+            is_male_out = is_male if is_male_out is None else is_male_out
+
+            if len(samples) < limit:
                 prob_distr[1] = 0
-        elif value >= thres[1] and value < thres[2]:
-            samples, is_male = get_err_gender_samples(max_checked_count=app.config.get('CHECKED_TIMES_MAX'))
-            if len(samples) > 0:
+
+            print('is_male={} n={}: new samples'.format(int(is_male_out), len(samples)))
+            samples_out.extend(samples)
+
+            if len(samples_out) == target_count:
                 break
-            else:
+
+        elif value >= thres[1] and value < thres[2]:
+            # annotated images with high error and no checked before
+            limit = target_count - len(samples_out)
+            samples, is_male = get_err_gender_samples(max_checked_count=max_checked_count, limit=limit,
+                                                      is_male_spec=is_male_out)
+            is_male_out = is_male if is_male_out is None else is_male_out
+
+            if len(samples) < limit:
                 prob_distr[2] = 0
 
-    return samples, is_male
+            print('is_male={} n={}: error samples with previous check'.format(int(is_male_out), len(samples)))
+            samples_out.extend(samples)
 
-def get_new_gender_samples():
+            if len(samples_out) == target_count:
+                break
+
+    elapsed = (time.time() - start) * 1000
+    print('getting samples for annotation finished in {:.3f}ms'.format(elapsed))
+
+    return samples_out, is_male_out
+
+def get_new_gender_samples(is_male_spec=None, limit=21):
     utc = arrow.now()
-    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
-    is_male_global = random.randint(0, 1)
+    expected_utc = utc.shift(minutes=app.config.get('SEND_EXPIRE_MIN'))
+    is_male_global = random.randint(0, 1) if is_male_spec is None else is_male_spec
     min_error = app.config.get('NEW_SAMPLES_MIN_ERROR')
 
     for i in range(2):
@@ -414,9 +471,9 @@ def get_new_gender_samples():
                         GenderSample.is_male == is_male_global)). \
             outerjoin(GenderUserAnnotation). \
             filter(and_(GenderUserAnnotation.id == None,  # no gt and user annotation
-                        GenderSample.is_annotated_gt==False)).limit(21).all()
+                        GenderSample.is_annotated_gt==False)).order_by(desc(GenderSample.error)).limit(limit).all()
 
-        if len(ann) > 0:
+        if len(ann) > 0 or is_male_spec is not None:
             break
         is_male_global = not is_male_global
 
@@ -440,12 +497,12 @@ def get_new_gender_samples():
 
     return samples_data, is_male_global
 
-def get_err_gender_samples(max_checked_count=0):
+def get_err_gender_samples(max_checked_count=0, is_male_spec=None, limit=21):
 
     utc = arrow.now()
-    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
+    expected_utc = utc.shift(minutes=app.config.get('SEND_EXPIRE_MIN'))
 
-    is_male_global = random.randint(0, 1)
+    is_male_global = random.randint(0, 1) if is_male_spec is None else is_male_spec
 
     min_error = app.config.get('SAMPLES_MIN_ERROR')
 
@@ -455,7 +512,6 @@ def get_err_gender_samples(max_checked_count=0):
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
             filter(and_(GenderSample.error > min_error,
-                        GenderSample.is_male == is_male_global,
                         GenderSample.checked_times <= max_checked_count,
                         or_(GenderSample.send_timestamp == None,
                             GenderSample.send_timestamp < expected_utc),
@@ -465,12 +521,14 @@ def get_err_gender_samples(max_checked_count=0):
             outerjoin(GenderUserAnnotation). \
             filter(
             or_(and_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
-                    GenderSample.is_annotated_gt),
+                     GenderSample.is_male == is_male_global,
+                     GenderSample.is_annotated_gt),
                 and_(GenderUserAnnotation.id != None,
+                     GenderUserAnnotation.is_male == is_male_global,
                      GenderUserAnnotation.is_hard == False,
-                     GenderUserAnnotation.is_bad == False))).order_by(desc(GenderSample.error)).limit(21).all()
+                     GenderUserAnnotation.is_bad == False))).order_by(desc(GenderSample.error)).limit(limit).all()
 
-        if len(ann) > 0:
+        if len(ann) > 0 or is_male_spec is not None:
             break
         is_male_global = not is_male_global
 
@@ -561,7 +619,7 @@ def reannotation(problem):
 @login_required
 @nocache
 def metrics(problem):
-    admin_permission.test(403)
+    moderator_permission.test(403)
     if problem not in ['gender']:
         abort(404)
     ctx = {'ts': int(time.time())}
@@ -587,6 +645,7 @@ def update_gender_data():
         # check json
         gender_data = validate_gender_input_data(is_male, gender_data)
         if gender_data is None:
+            print('input data is invalid')
             break
         # filt_gender_data = gender_filter_only_changed(gender_data)
 
@@ -594,10 +653,11 @@ def update_gender_data():
 
         # select samples data
         samples_data = app.db.session.query(GenderSample, GenderUserAnnotation).filter(GenderSample.id.in_(list_of_ids))\
-            .outerjoin(GenderUserAnnotation).filter(GenderUserAnnotation.id==None).all()
+            .outerjoin(GenderUserAnnotation).all()
         samples_db_data = {sd.GenderSample.id:sd for sd in samples_data}
 
         if len(samples_db_data) != len(list_of_ids):
+            print('wrong samples ids')
             break
 
         n_changed = 0
@@ -710,10 +770,10 @@ def update_gender_data():
         break
 
     if failed:
-        pass
-        # flash('Failed to process.')
+        print('failed to update')
+        flash('Failed to update data.')
     else:
-        pass
+        print('successfully updated data')
         # flash('Data successfully updated: added: {}, updated: {}, deleted: {}'.format(added, updated, deleted))
     return redirect(url_for('reannotation', problem='gender'))
 

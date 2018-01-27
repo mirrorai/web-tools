@@ -26,6 +26,7 @@
       <tr>
         <th>#</th>
         <th>Train finished time</th>
+        <th>Number of samples</th>
         {% for metric_name in metrics['metrics_names'] %}
           <th>{{metric_name}}</th>
         {% endfor %}
@@ -35,6 +36,7 @@
       <tr>
         <td class="">{{m['model_id']}}</td>
         <td class="">{{m['finished_ts']}}</td>
+        <td class="">{{m['num_samples']}}</td>
         {% for val in m['metrics_values'] %}
           <td>{{val}}</td>
         {% endfor %}

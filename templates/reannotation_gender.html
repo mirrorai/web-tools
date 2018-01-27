@@ -48,7 +48,9 @@
     {% for sample in ctx['samples'] %}
         <div class="sample-card {{'sample-card-man' if ctx['is_male'] else 'sample-card-woman'}}"
           data-sample-id="{{sample['id']}}">
-          <div style="font-weight:300;text-align:center;">{{sample['error_label']}}: {{'%0.3f' % sample['error']|float}}</div>
+          {% if current_user.has_role('moderator') %}
+            <div style="font-weight:300;text-align:center;">{{sample['error_label']}}: {{'%0.3f' % sample['error']|float}}</div>
+          {% endif %}
           <img src="{{ sample['image'] }}" role="button" class="img-card">
           <div class="caption">
             <div class="btn-group" role="group">

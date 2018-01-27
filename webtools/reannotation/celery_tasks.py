@@ -14,8 +14,8 @@ from sqlalchemy.sql.expression import case
 import sys
 import arrow
 from threading import Lock
-
-mylock = Lock()
+from slackclient import SlackClient
+from flask import url_for
 
 import numpy as np
 
@@ -215,7 +215,8 @@ def run_gender_train(updater, task_id, k_fold=None):
         updater.push_rescale(0.01, 0.99)
 
         # create model
-        gender_model = LearnedModel(task_id=task_id, problem_name='gender')
+        gender_model = LearnedModel(task_id=task_id, num_samples=len(samples),
+                                    problem_name='gender', started_ts=arrow.now())
         app.db.session.add(gender_model)
         app.db.session.flush()
         exp_num = gender_model.id
@@ -331,7 +332,7 @@ def compute_gender_metrics(gender_model, update_state=True):
             metric.update(dict(accuracy=metric_value))
         else:
             metric = AccuracyMetric(model_id=gender_model.id,
-                                    accuracy=metric_value)
+                                    accuracy=metric_value, finished_ts=arrow.now())
             app.db.session.add(metric)
 
         app.db.session.flush()
@@ -464,6 +465,10 @@ def run_test(self, taskname):
         updater.update_state(state='PROGRESS', progress=1.0,
                              status='Removing old models..')
         remove_old_main_models(taskname)
+
+        updater.update_state(state='PROGRESS', progress=1.0,
+                             status='Message to slack..')
+        report_gender_metric()
 
         updater.update_state(state='SUCCESS', progress=1.0,
                              status='Successfully finished, {}={:.3f}'.format(last_metric_name, last_metric_value))
@@ -695,3 +700,55 @@ def release_gpu(task_id):
         app.db.session.commit()
 
     return True
+
+def report_gender_metric():
+
+    problem_name = 'gender'
+    models = app.db.session.query(LearnedModel.id, AccuracyMetric.accuracy). \
+        filter(and_(LearnedModel.k_fold == None,
+                    LearnedModel.problem_name == problem_name,
+                    LearnedModel.finished_ts != None)). \
+        outerjoin(AccuracyMetric).order_by(desc(LearnedModel.id)).all()
+
+    if len(models) == 0:
+        return None
+
+    models_tested = [m for m in models if m[1] is not None]
+    if len(models_tested) == 0:
+        return None
+
+    best_model = max(models_tested, key=lambda x: x[1])
+
+    cur_accuracy = models[0][1]
+    if cur_accuracy is None:
+        return None
+
+    cur_error = 1 - cur_accuracy
+    if len(models) > 1 and models[1][1] is not None:
+        prev_accuracy = models[1][1]
+        prev_error = 1 - prev_accuracy
+        reduction = prev_error / cur_error if cur_error > 1e-12 else 1.0
+        msg = 'Best model is #{}: accuracy: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
+        msg += 'Previous model is #{}: accuracy: {:.3f}%\n'.format(models[1][0], 100 * prev_accuracy)
+        msg += 'Last model is #{}: accuracy: {:.3f}%\n'.format(models[0][0], 100 * cur_accuracy)
+        msg += '{}'.format(url_for('metrics', problem=problem_name))
+    else:
+        msg = 'Best model is #{}: accuracy: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
+        msg += 'Last model is #{}: accuracy: {:.3f}%\n'.format(models[0][1], 100 * cur_accuracy)
+        msg += '{}'.format(url_for('metrics', problem=problem_name))
+
+    msg = 'Models tested:\n{}'.format(msg)
+    send_slack_message(msg)
+
+
+def send_slack_message(msg, channel='#train-monitoring'):
+    slack_token = app.config.get('SLACK_API_TOKEN')
+    sc = SlackClient(slack_token)
+    a = sc.api_call(
+        'chat.postMessage',
+        channel=channel,
+        text=msg,
+        icon_emoji = ':robot_face:'
+        # icon_emoji = ':robot_face:'
+    )
+    print('slack response: {}'.format(a))

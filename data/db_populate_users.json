@@ -5,11 +5,15 @@
           "roles": [
             {
               "name": "admin",
-              "description": "Has access to everything"
+              "description": "Has access to everything, view statistics, manage training/testing"
             },
             {
-              "name": "demo",
-              "description": "Demo users are used for demonstration purposes"
+              "name": "moderator",
+              "description": "Moderators can view statistics, but can't manage training/testing"
+            },
+            {
+              "name": "annotator",
+              "description": "Annotators can annotate data"
             }
           ]
         },
@@ -18,22 +22,41 @@
           "users": [
             {
               "first_name": "Admin",
-              "middle_name": "Admin",
-              "last_name": "Admin",
+              "last_name": "",
               "email": "admin@mirror-ai.com",
               "password": "mirroraidev",
               "roles": [
-                "admin"
+                "admin", "moderator", "annotator"
               ],
               "active": true
             },
             {
-              "first_name": "Demo",
-              "last_name": "Demo",
-              "email": "demo@mirror-ai.com",
-              "password": "demodemo",
+              "first_name": "Moderator 1",
+              "last_name": "",
+              "email": "moderator@mirror-ai.com",
+              "password": "moderator1",
               "roles": [
-                "demo"
+                "moderator", "annotator"
+              ],
+              "active": true
+            },
+            {
+              "first_name": "Annotator 1",
+              "last_name": "",
+              "email": "annotator1@mirror-ai.com",
+              "password": "annotator1",
+              "roles": [
+                "annotator"
+              ],
+              "active": true
+            },
+            {
+              "first_name": "Annotator 2",
+              "last_name": "",
+              "email": "annotator2@mirror-ai.com",
+              "password": "annotator2",
+              "roles": [
+                "annotator"
               ],
               "active": true
             }

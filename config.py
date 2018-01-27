@@ -55,6 +55,8 @@ class Config(object):
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
 
+    SLACK_API_TOKEN = os.environ.get('SLACK_API_TOKEN')
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # User management
@@ -148,7 +150,7 @@ class StagingConfig(Config):
 class ProductionConfig(Config):
     # Environment
     PRODUCTION = True
-    # SERVER_NAME = 'webtools.mirror-ai.com'
+    SERVER_NAME = 'train4.mirror-ai.net:8000'
 
     # Logging
     LOG_LEVEL = logging.INFO
@@ -157,6 +159,8 @@ class ProductionConfig(Config):
     IMAGE_FOLDER = os.path.join(basedir, 'images/')
     IMAGE_CACHE_FOLDER = os.path.join(basedir, 'cache_images/')
     TEMP_FOLDER = os.path.join(basedir, 'temp_data/')
+
+    LIMIT_IMAGES_LOAD = 2000
 
     # SqlAlchemy
     MYSQL_PASS = os.environ.get('MYSQL_PASS')
