@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 source venv/webtools/bin/activate
 export PATH=$PATH:/usr/local/sbin
 #export STAGE_CONFIG=config.DevelopmentConfig

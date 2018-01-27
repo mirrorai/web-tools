@@ -130,6 +130,8 @@ class GenderSample(db.Model):
     k_fold = db.SDColumn(db.Integer, nullable=True) # 0,1,2...K
     always_test = db.SDColumn(db.Integer, default=False) # always keep sample for testing
 
+    changed_ts = db.SDColumn(ArrowType)
+
 class LearnedModel(db.Model):
     id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
     problem_name = db.SDColumn(db.String(64))

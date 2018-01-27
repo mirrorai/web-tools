@@ -150,4 +150,5 @@ from .history import views
 
 # Celery tasks
 import cron_tasks
+from .reannotation import cron_tasks
 from .reannotation import celery_tasks

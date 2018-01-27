@@ -33,7 +33,8 @@ class Config(object):
     IMAGE_FOLDER = '__NOT_SET__'
     IMAGE_CACHE_FOLDER = '__NOT_SET__'  # for resized frames
     TEMP_FOLDER = '__NOT_SET__'
-    TRAINROOM_FOLDER = 'trainroom'
+    TRAINROOM_FOLDER = os.path.join(basedir, 'trainroom/')
+    REPOSITORIES_FOLDER = os.path.join(basedir, 'repositories/')
     LIMIT_IMAGES_LOAD = 0
 
     CV_PARTITION_FOLDS = 4
@@ -98,7 +99,19 @@ class Config(object):
         'clean_waste_models_every_1_hour': {
             'task': 'webtools.cron_tasks.clean_waste_models',
             'schedule': timedelta(hours=1)
-        }
+        },
+        'auto_train_check_every_5_minutes': {
+            'task': 'webtools.reannotation.cron_tasks.auto_training',
+            'schedule': timedelta(minutes=5)
+        },
+        'auto_test_check_every_15_minutes': {
+            'task': 'webtools.reannotation.cron_tasks.auto_testing',
+            'schedule': timedelta(minutes=15)
+        },
+        'annotation_statistics': {
+            'task': 'webtools.reannotation.cron_tasks.annotation_statistics',
+            'schedule': crontab(minute=0, hour=9)
+        },
     }
 
     # CELERY_TASK_ROUTES = {

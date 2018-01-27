@@ -14,7 +14,7 @@ from sqlalchemy.sql.expression import case
 import sys
 import arrow
 from threading import Lock
-from slackclient import SlackClient
+from webtools.utils import send_slack_message
 from flask import url_for
 
 import numpy as np
@@ -191,7 +191,7 @@ def run_train(self, taskname):
         updater = StatusUpdater(self.request.id)
         run_gender_train(updater, self.request.id)
         updater.update_state(state='SUCCESS', progress=1.0, status='Model successfully trained')
-        updater.finish(arrow.now())
+        updater.finish(arrow.utcnow())
         return dump_result()
     else:
         print('uknown taskname: {}'.format(taskname))
@@ -216,7 +216,7 @@ def run_gender_train(updater, task_id, k_fold=None):
 
         # create model
         gender_model = LearnedModel(task_id=task_id, num_samples=len(samples),
-                                    problem_name='gender', started_ts=arrow.now())
+                                    problem_name='gender', started_ts=arrow.utcnow())
         app.db.session.add(gender_model)
         app.db.session.flush()
         exp_num = gender_model.id
@@ -249,7 +249,7 @@ def run_gender_train(updater, task_id, k_fold=None):
         model.epoch = epoch
         if k_fold is not None:
             model.k_fold = k_fold
-        model.finished_ts = arrow.now()
+        model.finished_ts = arrow.utcnow()
         app.db.session.flush()
         app.db.session.commit()
 
@@ -277,7 +277,7 @@ def train_on_success(result):
 
 def clear_data_for_train_task(uuid, state, status):
     tasks = LearningTask.query.filter_by(task_id=uuid)
-    ts = arrow.now()
+    ts = arrow.utcnow()
     tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
     app.db.session.flush()
     app.db.session.commit()
@@ -332,7 +332,7 @@ def compute_gender_metrics(gender_model, update_state=True):
             metric.update(dict(accuracy=metric_value))
         else:
             metric = AccuracyMetric(model_id=gender_model.id,
-                                    accuracy=metric_value, finished_ts=arrow.now())
+                                    accuracy=metric_value, finished_ts=arrow.utcnow())
             app.db.session.add(metric)
 
         app.db.session.flush()
@@ -361,10 +361,6 @@ def compute_errors(gender_model):
         outerjoin(GenderSampleResult). \
         filter(and_(GenderSampleResult.id != None,
                     GenderSampleResult.model_id == gender_model.id)).all()
-
-    checked_times_max = app.config.get('CHECKED_TIMES_MAX')
-    checked_times_coeff = app.config.get('CHECKED_TIMES_COEFF')
-    checked_times_min = app.config.get('CHECKED_TIMES_MIN')
 
     for sample, is_male, is_ann, checked_times, prob_neg, prob_pos in ann:
         if is_ann:
@@ -410,7 +406,7 @@ def remove_old_main_models(problem_name):
     app.db.session.commit()
 
 @app.celery.task(bind=True)
-def run_test(self, taskname):
+def run_test(self, taskname, update_errors=True):
     if taskname == 'gender':
         updater = StatusUpdater(self.request.id)
 
@@ -424,7 +420,7 @@ def run_test(self, taskname):
 
         if num_models == 0:
             updater.update_state(state='FAILURE', progress=1.0, status='No models to test')
-            updater.finish(arrow.now())
+            updater.finish(arrow.utcnow())
             return dump_result()
 
         updater.update_state(state='PROGRESS', progress=0.0, status='Waiting available gpu..')
@@ -445,7 +441,7 @@ def run_test(self, taskname):
                                  status='Computing metrics..')
             metric_name, metric_value = compute_gender_metrics(gender_model)
 
-            if idx == 0:
+            if idx == 0 and update_errors:
                 updater.update_state(state='PROGRESS', progress=1.0,
                                      status='Computing errors..')
                 compute_errors(gender_model)
@@ -473,7 +469,7 @@ def run_test(self, taskname):
         updater.update_state(state='SUCCESS', progress=1.0,
                              status='Successfully finished, {}={:.3f}'.format(last_metric_name, last_metric_value))
 
-        updater.finish(arrow.now())
+        updater.finish(arrow.utcnow())
         return dump_result()
     else:
         print('uknown taskname: {}'.format(taskname))
@@ -532,7 +528,7 @@ def test_on_success(result):
 
 def clear_data_for_test_task(uuid, state, status):
     tasks = LearningTask.query.filter_by(task_id=uuid)
-    ts = arrow.now()
+    ts = arrow.utcnow()
     tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
     app.db.session.flush()
     app.db.session.commit()
@@ -547,7 +543,7 @@ def run_train_k_folds(self, taskname, k_fold):
         update_gender_cv_partition()
         run_gender_train(updater, self.request.id, k_fold=k_fold)
         updater.update_state(state='SUCCESS', progress=1.0, status='Model successfully trained')
-        updater.finish(arrow.now())
+        updater.finish(arrow.utcnow())
         return dump_result()
     else:
         print('uknown taskname: {}'.format(taskname))
@@ -567,7 +563,7 @@ def train_k_folds_on_success(result):
 
 def clear_data_for_train_k_folds_task(uuid, state, status):
     tasks = LearningTask.query.filter_by(task_id=uuid)
-    ts = arrow.now()
+    ts = arrow.utcnow()
     tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
     app.db.session.flush()
     app.db.session.commit()
@@ -625,7 +621,7 @@ def run_test_k_folds(self, taskname, k_fold):
         else:
             updater.update_state(state='SUCCESS', progress=1.0,
                                  status='No model to test')
-        updater.finish(arrow.now())
+        updater.finish(arrow.utcnow())
 
         return dump_result()
     else:
@@ -646,7 +642,7 @@ def test_k_folds_on_success(result):
 
 def clear_data_for_test_k_folds_task(uuid, state, status):
     tasks = LearningTask.query.filter_by(task_id=uuid)
-    ts = arrow.now()
+    ts = arrow.utcnow()
     tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
     app.db.session.flush()
     app.db.session.commit()
@@ -734,21 +730,8 @@ def report_gender_metric():
         msg += '{}'.format(url_for('metrics', problem=problem_name))
     else:
         msg = 'Best model is #{}: accuracy: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
-        msg += 'Last model is #{}: accuracy: {:.3f}%\n'.format(models[0][1], 100 * cur_accuracy)
+        msg += 'Last model is #{}: accuracy: {:.3f}%\n'.format(models[0][0], 100 * cur_accuracy)
         msg += '{}'.format(url_for('metrics', problem=problem_name))
 
-    msg = 'Models tested:\n{}'.format(msg)
+    msg = ':loudspeaker: Test finished\n*Gender:*\n{}'.format(msg)
     send_slack_message(msg)
-
-
-def send_slack_message(msg, channel='#train-monitoring'):
-    slack_token = app.config.get('SLACK_API_TOKEN')
-    sc = SlackClient(slack_token)
-    a = sc.api_call(
-        'chat.postMessage',
-        channel=channel,
-        text=msg,
-        icon_emoji = ':robot_face:'
-        # icon_emoji = ':robot_face:'
-    )
-    print('slack response: {}'.format(a))

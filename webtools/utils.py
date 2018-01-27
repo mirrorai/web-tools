@@ -24,6 +24,7 @@ from . import app, opencv
 import reannotation.models
 from sqlalchemy import or_, and_
 from operator import itemgetter, attrgetter
+from slackclient import SlackClient
 
 class add_path():
     def __init__(self, path):
@@ -583,3 +584,15 @@ def remove_simular(imgs_dir, marking):
                 output_dub_count[imname1] += 1
 
     return output_marking, output_dub_count
+
+def send_slack_message(msg, channel='#train-monitoring'):
+    slack_token = app.config.get('SLACK_API_TOKEN')
+    sc = SlackClient(slack_token)
+    a = sc.api_call(
+        'chat.postMessage',
+        channel=channel,
+        text=msg,
+        icon_emoji = ':robot_face:'
+        # icon_emoji = ':robot_face:'
+    )
+    print('slack response: {}'.format(a))

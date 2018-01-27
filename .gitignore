@@ -5,9 +5,9 @@
 # Python generated files
 *.pyc
 
-# Queue image folders
-cache_images
-images
+# image folders
+./cache_images
+./images
 
 # Virtual env and autoenv scripts
 venv/*

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% set active_page = 'reannotation' %} {# For menu highlight #}
-{% block title %}{{ super() }}Reannotation{% endblock %}
+{% block title %}{{ super() }}Annotation{% endblock %}
 {% block styles %}
 {{ super() }}
 <link href="{{ url_for('static', filename='bower_components/metrics-graphics/dist/metricsgraphics.css') }}"
@@ -77,14 +77,71 @@
         <h4 class="modal-title">Annotation instructions</h4>
       </div>
       <div class="modal-body">
+        <h4>Task</h4>
         <p>The task is to find and select pictures of <strong>men</strong> or <strong>women</strong> as indicated in the header</p>
         <ul>
           <li>Click on image to select it</li>
           <li>You can also select image by clicking on the button (<strong>woman/man</strong>)</li>
-          <li>Click on <strong>bad</strong> button if image does not contain face</li>
+          <li>Click on <strong>bad</strong> button if image does not contain face or image is not properly cropped</li>
           <li>Click on <strong>hard</strong> button if it's difficult to say whether man or woman on the image</li>
           <li><span class="label label-info">Blue</span> color stands for man, <span class="label label-warning">yellow</span> color stands for woman</li>
+          <li>If the image has poor lighting but face is recognizable, try to determine the gender</li>
+          <li>Select <strong>bad</strong> (or <strong>hard</strong>) if it is <em><strong>really</strong></em>
+          <strong>bad</strong> (or <strong>hard</strong>)</li>
         </ul>
+        <h4>Examples</h4>
+        <p>Man</p>
+        <div class="sample-card sample-card-man">
+          <img src="{{url_for('static', filename='images/gender/man/4232.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-man">
+          <img src="{{url_for('static', filename='images/gender/man/4272.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-man">
+          <img src="{{url_for('static', filename='images/gender/man/5574.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-man">
+          <img src="{{url_for('static', filename='images/gender/man/5470.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-man">
+          <img src="{{url_for('static', filename='images/gender/man/5461.jpeg')}}" class="img-card">
+        </div>
+        <p>Woman</p>
+        <div class="sample-card sample-card-woman">
+          <img src="{{url_for('static', filename='images/gender/woman/4486.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-woman">
+          <img src="{{url_for('static', filename='images/gender/woman/2036.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-woman">
+          <img src="{{url_for('static', filename='images/gender/woman/3607.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-woman">
+          <img src="{{url_for('static', filename='images/gender/woman/5210.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-woman">
+          <img src="{{url_for('static', filename='images/gender/woman/5542.jpeg')}}" class="img-card">
+        </div>
+        <p>Hard</p>
+        <div class="sample-card sample-card-bad">
+          <img src="{{url_for('static', filename='images/gender/hard/2061.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-bad">
+          <img src="{{url_for('static', filename='images/gender/hard/5626.jpeg')}}" class="img-card">
+        </div>
+        <p>Bad</p>
+        <div class="sample-card sample-card-bad">
+          <img src="{{url_for('static', filename='images/gender/bad/2547.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-bad">
+          <img src="{{url_for('static', filename='images/gender/bad/4399.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-bad">
+          <img src="{{url_for('static', filename='images/gender/bad/5089.jpeg')}}" class="img-card">
+        </div>
+        <div class="sample-card sample-card-bad">
+          <img src="{{url_for('static', filename='images/gender/bad/4428.jpeg')}}" class="img-card">
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>

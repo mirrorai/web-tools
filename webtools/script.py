@@ -172,12 +172,14 @@ class AddImageDB(Command):
             app.db.session.add(image)
             app.db.session.flush()
 
+            ts = arrow.utcnow()
+
             # create sample
             if is_male != -1:
                 sample = GenderSample(image_id=image.id, is_male=is_male, k_fold=k_fold,
-                                      is_annotated_gt=True, always_test=test_only)
+                                      is_annotated_gt=True, always_test=test_only, changed_ts=ts)
             else:
-                sample = GenderSample(image_id=image.id, k_fold=k_fold, always_test=test_only)
+                sample = GenderSample(image_id=image.id, k_fold=k_fold, always_test=test_only, changed_ts=ts)
             # add to db
             app.db.session.add(sample)
             app.db.session.flush()
@@ -292,7 +294,7 @@ class ResetSendSamples(Command):
 
     @staticmethod
     def reset_send():
-        utc = arrow.now()
+        utc = arrow.utcnow()
         expected = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
         t = GenderSample.query.filter(and_(GenderSample.send_timestamp<expected,
                                        GenderSample.is_send)).update(dict(is_send=False), synchronize_session='fetch')

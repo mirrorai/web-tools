@@ -31,6 +31,8 @@ from webtools.wrappers import nocache
 
 from .models import Image, GenderSample, GenderUserAnnotation, LearningTask, LearnedModel,\
     AccuracyMetric, GenderSampleResult
+from .utils import clear_old_tasks, check_working_tasks, get_learned_models_count
+
 from .forms import GenderDataForm
 from .celery_tasks import dump_task
 from .celery_tasks import run_train, train_on_error, train_on_success, clear_data_for_train_task
@@ -186,22 +188,6 @@ def task_filter(resp_map, models_count, models_k_folds_count, annotated_count):
         resp_map['train_k_folds']['start_url'] = '#'
         resp_map['train_k_folds']['stop_url'] = '#'
 
-def get_learned_models_count(problem_name, k_folds=False):
-    if not k_folds:
-        models = LearnedModel.query.filter(and_(LearnedModel.problem_name==problem_name,
-                                                LearnedModel.k_fold==None,
-                                                LearnedModel.finished_ts!=None))
-    else:
-        models = LearnedModel.query.filter(and_(LearnedModel.problem_name==problem_name,
-                                                LearnedModel.k_fold!=None,
-                                                LearnedModel.finished_ts!=None))
-    return models.count()
-
-def check_working_tasks(problem_name, problem_type):
-    return LearningTask.query.\
-               filter_by(problem_type=problem_type,problem_name=problem_name,finished_ts=None)\
-               .count() > 0
-
 def stop_all_learning_task(problem_name):
     learning_task = LearningTask.query.filter_by(problem_name=problem_name)
     stopped = 0
@@ -211,13 +197,6 @@ def stop_all_learning_task(problem_name):
         train_on_error(task_id)
         stopped += 1
     print('{} tasks successfully stopped'.format(stopped))
-    learning_task.delete()
-    app.db.session.flush()
-    app.db.session.commit()
-
-def clear_old_tasks(problem_name, problem_type):
-    learning_task = LearningTask.query.filter_by(problem_name=problem_name,problem_type=problem_type)
-    print('{} tasks successfully deleted'.format(learning_task.count()))
     learning_task.delete()
     app.db.session.flush()
     app.db.session.commit()
@@ -258,8 +237,8 @@ def get_gender_problem_data():
     return gender_problem_data
 
 def get_gender_stats():
-    utc = arrow.now()
-    expected_utc = utc.shift(minutes=app.config.get('SEND_EXPIRE_MIN'))
+    utc = arrow.utcnow()
+    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
 
     total = GenderSample.query.count()
 
@@ -453,8 +432,8 @@ def get_samples_for_ann():
     return samples_out, is_male_out
 
 def get_new_gender_samples(is_male_spec=None, limit=21):
-    utc = arrow.now()
-    expected_utc = utc.shift(minutes=app.config.get('SEND_EXPIRE_MIN'))
+    utc = arrow.utcnow()
+    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
     is_male_global = random.randint(0, 1) if is_male_spec is None else is_male_spec
     min_error = app.config.get('NEW_SAMPLES_MIN_ERROR')
 
@@ -477,7 +456,7 @@ def get_new_gender_samples(is_male_spec=None, limit=21):
             break
         is_male_global = not is_male_global
 
-    utc = arrow.now()
+    utc = arrow.utcnow()
     samples_data = []
     for sample, is_male in ann:
         sample_data = {}
@@ -499,8 +478,8 @@ def get_new_gender_samples(is_male_spec=None, limit=21):
 
 def get_err_gender_samples(max_checked_count=0, is_male_spec=None, limit=21):
 
-    utc = arrow.now()
-    expected_utc = utc.shift(minutes=app.config.get('SEND_EXPIRE_MIN'))
+    utc = arrow.utcnow()
+    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
 
     is_male_global = random.randint(0, 1) if is_male_spec is None else is_male_spec
 
@@ -532,7 +511,7 @@ def get_err_gender_samples(max_checked_count=0, is_male_spec=None, limit=21):
             break
         is_male_global = not is_male_global
 
-    utc = arrow.now()
+    utc = arrow.utcnow()
     samples_data = []
     for sample, is_male in ann:
         sample_data = {}
@@ -710,6 +689,7 @@ def update_gender_data():
             if is_changed:
                 n_changed += 1
                 sample_db.checked_times = 0
+                sample_db.changed_ts = utc
             else:
                 n_not_changed += 1
                 sample_db.checked_times += 1
@@ -721,52 +701,6 @@ def update_gender_data():
         app.db.session.flush()
         app.db.session.commit()
         failed = False
-        break
-
-        # delete previous annotation for this user and samples
-        filt_list_of_ids = [sample_id for sample_id in filt_gender_data]
-        list_of_ids = [sample_id for sample_id in gender_data]
-        deleted = GenderUserAnnotation.query.\
-            filter(and_(GenderUserAnnotation.sample_id.in_(filt_list_of_ids),
-                        GenderUserAnnotation.user_id==user_id)).delete(synchronize_session='fetch')
-
-        # check that all samples ids is valid
-        gender_samples = GenderSample.query.filter(GenderSample.id.in_(list_of_ids))
-        if gender_samples.count() != len(list_of_ids):
-            break
-
-        for gender_sample in gender_samples.all():
-            gender_sample.is_checked = True
-            gender_sample.checked_times += 1
-            if gender_sample.id in filt_gender_data:
-                gender_sample.checked_times = 0
-
-        app.db.session.flush()
-
-        accepted = 0
-        for sample_id in filt_gender_data:
-            gdata = gender_data[sample_id]
-
-            args = {}
-            args['is_hard'] = gdata['is_hard']
-            args['is_bad'] = gdata['is_bad']
-            args['is_male'] = gdata['is_male']
-            args['user_id']=user_id
-            args['sample_id']=sample_id
-            args['mark_timestamp']=utc
-
-            # create instance
-            user_gender_ann = GenderUserAnnotation(**args)
-
-            # add to db
-            app.db.session.add(user_gender_ann)
-            app.db.session.flush()
-
-            accepted += 1
-
-        # emulate if-statement
-        failed = False
-        app.db.session.commit()
         break
 
     if failed:
