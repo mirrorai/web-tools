@@ -21,3 +21,7 @@ def clean_waste_models():
 def reset_send_samples():
     print('reset_send_samples')
     ResetSendSamples().run()
+
+@app.celery.task()
+def auto_training():
+    print('auto training')
