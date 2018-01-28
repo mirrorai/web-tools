@@ -46,13 +46,13 @@ class Config(object):
 
     TRIGGER_TRAIN_MIN_SAMPLES = 1500
     TRIGGER_TRAIN_MAX_HOURS = 24
-    TRIGGER_TRAIN_MIN_HOURS = 3
+    TRIGGER_TRAIN_MIN_HOURS = 0 #3
 
-    TRIGGER_TEST_MIN_MINUTES = 30
+    TRIGGER_TEST_MIN_MINUTES = 5
 
     TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES = 1000
     TRIGGER_TRAIN_K_FOLDS_MAX_HOURS = 24
-    TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 3
+    TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 0 #3
 
     TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 30
 
@@ -116,19 +116,19 @@ class Config(object):
         },
         'auto_train_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training',
-            'schedule': timedelta(minutes=1)
+            'schedule': timedelta(minutes=5)
         },
         'auto_test_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing',
-            'schedule': timedelta(minutes=1)
+            'schedule': timedelta(minutes=5)
         },
         'auto_train_k_folds_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training_k_folds',
-            'schedule': timedelta(minutes=1)
+            'schedule': timedelta(minutes=20)
         },
         'auto_test_k_folds_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing_k_folds',
-            'schedule': timedelta(minutes=1)
+            'schedule': timedelta(minutes=20)
         },
         'annotation_statistics': {
             'task': 'webtools.reannotation.cron_tasks.annotation_statistics',

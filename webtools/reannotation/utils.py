@@ -31,7 +31,7 @@ def get_all_k_folds_learned_models_count(problem_name):
 
 def get_finished_time_task(problem_name, problem_type, k_fold=None):
     task =  LearningTask.query. \
-               filter_by(problem_type=problem_type, k_fold=k_fold, problem_name=problem_name) \
+               filter_by(state='SUCCESS', problem_type=problem_type, k_fold=k_fold, problem_name=problem_name) \
                .first()
     if task is None:
         return None

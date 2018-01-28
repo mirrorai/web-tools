@@ -116,7 +116,7 @@ def auto_training():
                 reason = 'time threshold'
 
     if trigger_train:
-        print('run auto-training')
+        print('run auto-training: {}'.format(reason))
 
         clear_old_tasks(problem_name, problem_type)
 
@@ -151,6 +151,7 @@ def auto_training_k_folds():
     k_folds = app.config.get('CV_PARTITION_FOLDS')
 
     task_ids = []
+    folds_tested = []
     for k_fold in range(k_folds):
 
         trigger_train = False
@@ -229,7 +230,7 @@ def auto_training_k_folds():
                     reason = 'time threshold'
 
         if trigger_train:
-            print('run k-fold {} auto-training'.format(k_fold))
+            print('run k-fold {} auto-training: {}'.format(k_fold, reason))
             clear_old_tasks(problem_name, problem_type, k_fold=k_fold)
 
             task_id = celery.uuid()
@@ -246,11 +247,12 @@ def auto_training_k_folds():
                                                  link=train_k_folds_on_success.s(),
                                                  queue='learning')
             task_ids.append(task_id)
+            folds_tested.append(k_fold)
             print('{} task successfully started'.format(task.id))
 
     if len(task_ids) > 0:
         msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
-        msg += 'run training for folds='.format(','.join([str(id) for id in task_ids]))
+        msg += 'run training for folds={}'.format(','.join([str(fold) for fold in folds_tested]))
 
         send_slack_message(msg)
 
@@ -273,6 +275,7 @@ def auto_testing():
     # check number of models not tested
     if not do_run_test:
         n_not_tested_models = LearnedModel.query.filter(and_(LearnedModel.problem_name == problem_name,
+                                                             LearnedModel.k_fold == None,
                                                              LearnedModel.finished_ts != None)).\
             outerjoin(AccuracyMetric).filter(AccuracyMetric.id==None).count()
 
@@ -324,7 +327,7 @@ def auto_testing():
 
     # run testing
     if do_run_test:
-        print('run auto-testing')
+        print('run auto-testing: {}'.format(reason))
 
         clear_old_tasks(problem_name, problem_type)
 
@@ -357,6 +360,7 @@ def auto_testing_k_folds():
     k_folds = app.config.get('CV_PARTITION_FOLDS')
 
     task_ids = []
+    folds_tested = []
     for k_fold in range(k_folds):
 
         trigger_test = False
@@ -406,7 +410,7 @@ def auto_testing_k_folds():
                 trigger_test = True
 
         if trigger_test:
-            print('run k-fold {} auto-testing'.format(k_fold))
+            print('run k-fold {} auto-testing: {}'.format(k_fold, reason))
 
             clear_old_tasks(problem_name, problem_type, k_fold=k_fold)
 
@@ -423,11 +427,12 @@ def auto_testing_k_folds():
                                                 link=test_k_folds_on_success.s(),
                                                 queue='learning')
             task_ids.append(task_id)
+            folds_tested.append(k_fold)
             print('{} task successfully started'.format(task.id))
 
     if len(task_ids) > 0:
         msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
-        msg += 'run testing for folds='.format(','.join([str(id) for id in task_ids]))
+        msg += 'run testing for folds={}'.format(','.join([str(fold) for fold in folds_tested]))
 
         send_slack_message(msg)
 

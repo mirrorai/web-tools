@@ -13,6 +13,7 @@ from flask_migrate import downgrade, upgrade
 from flask_script import Command, Option
 from flask_security.confirmable import confirm_user
 from sqlalchemy import func, or_, and_, desc, not_, update
+from sqlalchemy.sql.expression import case
 import numpy as np
 import codecs
 
@@ -20,6 +21,7 @@ from os.path import join, splitext, basename, dirname, isfile, isdir
 
 from . import app
 from .reannotation.models import Image, GenderSample, GenderUserAnnotation, ImagesDatabase, LearnedModel
+from .reannotation.models import LearningTask, GPUStatus
 
 from .utils import camelcase_to_snakecase, mkdir_p, list_subdirs, \
     list_images, check_image, validate_size, query_yes_no, get_number, find_fp_fn, \
@@ -47,6 +49,45 @@ class ResetDb(Command):
         shutil.rmtree(app.config['IMAGE_CACHE_FOLDER'])
         downgrade(revision='base')
         upgrade()
+
+class GetSamples(Command):
+    """Adds images to DB"""
+    option_list = (
+        Option(
+            '--output-file', '-o',
+            dest='output_file',
+            help='Output file path'
+        ),
+    )
+
+    def __init__(self, func=None):
+        super(GetSamples, self).__init__(func=func)
+
+    def run(self, output_file):
+
+        res = app.db.session.query(GenderSample,
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_hard)],
+                                        else_=GenderUserAnnotation.is_hard),
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_bad)],
+                                        else_=GenderUserAnnotation.is_bad),
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                        else_=GenderUserAnnotation.is_male)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(or_(and_(GenderUserAnnotation.id == None,
+                            GenderSample.is_annotated_gt),
+                       and_(GenderUserAnnotation.id != None))).all()
+
+        print('number of samples: {}'.format(len(res)))
+
+        with open(output_file, 'w') as fp:
+            fp.write('#db_name,imname,hard,bad,male\n')
+            for sample, is_hard, is_bad, is_male in res:
+                is_test = sample.always_test
+                k_fold = sample.k_fold
+                db_name = sample.image.imdb.name
+                imname = sample.image.imname
+                fp.write('{};{};{};{};{}\n'.format(db_name,imname,int(is_hard),int(is_bad),int(is_male)))
+        print('finished successfully.')
 
 class AddImageDB(Command):
     """Adds images to DB"""
@@ -288,7 +329,6 @@ class CleanWasteModels(Command):
 
             print('{}: {} deleted, {} keeped'.format(problem_name, removed, keeped))
 
-
 class ResetSendSamples(Command):
     """Reset send flag"""
     def run(self, **kwargs):
@@ -302,7 +342,6 @@ class ResetSendSamples(Command):
                                        GenderSample.is_send)).update(dict(is_send=False), synchronize_session='fetch')
         app.db.session.commit()
         print('samples reset count: {}'.format(t))
-
 
 class CleanWasteImages(Command):
     """Removes all snapshots and cached images that are not referenced from DB"""
@@ -338,7 +377,6 @@ class CleanWasteImages(Command):
 
         status_file.close()
 
-
 class CleanSamples(Command):
     """Removes all snapshots and cached images that are not referenced from DB"""
 
@@ -366,6 +404,24 @@ class CleanSamples(Command):
         shutil.rmtree(app.config['IMAGE_CACHE_FOLDER'])
 
         print('samples deleted: {}'.format(samples_count))
+
+class CleanModels(Command):
+    """Removes all snapshots and cached images that are not referenced from DB"""
+
+    def run(self, **kwargs):
+        self.clean_models()
+
+    @staticmethod
+    def clean_models():
+
+        LearnedModel.query.delete()
+        LearningTask.query.delete()
+        GPUStatus.query.delete()
+        GenderSample.query.update(dict(error=0.0, is_checked=False, is_changed=True, checked_times=0))
+
+        app.db.session.commit()
+
+        print('models and tasks deleted')
 
 class CleanCache(Command):
     """Removes all cached images from DB"""

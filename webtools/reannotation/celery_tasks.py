@@ -85,15 +85,15 @@ def get_test_samples(for_model_id, k_fold=None):
         res = app.db.session.query(GenderSample,
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
-            filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
-                        GenderSample.is_bad == False,
+            filter(and_(GenderSample.is_hard != None, #temporary,  == False, but maybe == True is needed
+                        GenderSample.is_bad != None, #temporary == False, but maybe == True is needed
                         GenderSample.k_fold != None,
                         GenderSample.k_fold == k_fold)). \
             outerjoin(GenderUserAnnotation). \
             filter(or_(GenderUserAnnotation.id == None,
                        and_(GenderUserAnnotation.id != None,
-                            GenderUserAnnotation.is_hard == False,
-                            GenderUserAnnotation.is_bad == False))). \
+                            GenderUserAnnotation.is_hard != None, #temporary,  == False, but maybe == True is needed
+                            GenderUserAnnotation.is_bad != None))). \
             outerjoin(subq). \
             filter(subq.c.id == None).all()
     else:
@@ -101,14 +101,14 @@ def get_test_samples(for_model_id, k_fold=None):
         res = app.db.session.query(GenderSample,
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
-            filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
-                        GenderSample.is_bad == False,
+            filter(and_(GenderSample.is_hard != None,  # no bad or hard samples
+                        GenderSample.is_bad != None,
                         GenderSample.always_test == True)). \
             outerjoin(GenderUserAnnotation). \
             filter(or_(GenderUserAnnotation.id == None,
                        and_(GenderUserAnnotation.id != None,
-                            GenderUserAnnotation.is_hard == False,
-                            GenderUserAnnotation.is_bad == False))).\
+                            GenderUserAnnotation.is_hard != None, #temporary == False, but maybe == True is needed
+                            GenderUserAnnotation.is_bad != None))).\
             outerjoin(subq).\
             filter(subq.c.id==None).all()
 
