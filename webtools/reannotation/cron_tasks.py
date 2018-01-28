@@ -192,7 +192,7 @@ def auto_training_k_folds():
                                 GenderUserAnnotation.is_bad == False))).count()
 
             model = LearnedModel.query.filter(and_(LearnedModel.problem_name == problem_name,
-                                                   LearnedModel.k_fold == None,
+                                                   LearnedModel.k_fold == k_fold,
                                                    LearnedModel.finished_ts != None)).first()
             if model:
                 n_new = n_samples - model.num_samples
@@ -348,7 +348,7 @@ def auto_testing():
         send_slack_message(msg)
 
 @app.celery.task()
-def auto_test_k_folds():
+def auto_testing_k_folds():
     print('auto-testing k-folds')
 
     problem_name = 'gender'

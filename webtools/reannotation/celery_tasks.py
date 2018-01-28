@@ -747,6 +747,7 @@ def report_gender_train(model):
     elapsed = model.finished_ts - model.started_ts
 
     msg = 'Model id: #{}\n'.format(model.id)
+    msg += 'K-Fold: {}\n'.format(model.k_fold) if model.k_fold is not None else ''
     msg += 'Number of training samples: {}\n'.format(model.num_samples)
     msg += 'Training time: {}'.format(model.finished_ts.humanize(model.started_ts, only_distance=True))
 
