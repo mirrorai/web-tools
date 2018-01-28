@@ -35,6 +35,8 @@ class Config(object):
     TEMP_FOLDER = '__NOT_SET__'
     TRAINROOM_FOLDER = os.path.join(basedir, 'trainroom/')
     REPOSITORIES_FOLDER = os.path.join(basedir, 'repositories/')
+    GENA_FOLDER_NAME = 'gena'
+    GENA_GIT = 'https://github.com/mirrorai/gena.git'
     LIMIT_IMAGES_LOAD = 0
 
     CV_PARTITION_FOLDS = 4
@@ -44,19 +46,20 @@ class Config(object):
     SEND_EXPIRE_MIN = 4
     KEEP_TOP_MODELS_CNT = 3
 
-    TRIGGER_TRAIN_MIN_SAMPLES = 1500
-    TRIGGER_TRAIN_MAX_HOURS = 24
-    TRIGGER_TRAIN_MIN_HOURS = 0 #3
+    TRIGGER_TRAIN_MIN_SAMPLES = 5
+    TRIGGER_TRAIN_MAX_HOURS = 0
+    TRIGGER_TRAIN_MIN_HOURS = 0
 
-    TRIGGER_TEST_MIN_MINUTES = 5
+    TRIGGER_TEST_MIN_MINUTES = 3
 
-    TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES = 1000
-    TRIGGER_TRAIN_K_FOLDS_MAX_HOURS = 24
-    TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 0 #3
+    TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES = 10
+    TRIGGER_TRAIN_K_FOLDS_MAX_HOURS = 0
+    TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 0
 
-    TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 30
+    TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 3
 
-    MIN_ACCURACY_TO_DEPLOY = 0.98
+    MIN_ACCURACY_TO_DEPLOY = 0.90
+    TRIGGER_DEPLOY_MIN_HOURS = 0 #3
 
     GPU_IDS = [3]
 
@@ -69,6 +72,9 @@ class Config(object):
     MAIL_USE_SSL = False
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+
+    GIT_LOGIN = os.environ.get('GIT_LOGIN')
+    GIT_PASS = os.environ.get('GIT_PASS')
 
     SLACK_API_TOKEN = os.environ.get('SLACK_API_TOKEN')
 
@@ -116,11 +122,11 @@ class Config(object):
         },
         'auto_train_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training',
-            'schedule': timedelta(minutes=5)
+            'schedule': timedelta(minutes=20)
         },
         'auto_test_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing',
-            'schedule': timedelta(minutes=5)
+            'schedule': timedelta(minutes=20)
         },
         'auto_train_k_folds_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training_k_folds',
@@ -134,6 +140,10 @@ class Config(object):
             'task': 'webtools.reannotation.cron_tasks.annotation_statistics',
             'schedule': crontab(minute=0, hour=9)
         },
+        'auto_deploy_check_every_5_minutes': {
+            'task': 'webtools.reannotation.cron_tasks.auto_deploy',
+            'schedule': timedelta(minutes=1)
+        }
     }
 
     # CELERY_TASK_ROUTES = {

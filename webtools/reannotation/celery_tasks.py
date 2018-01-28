@@ -273,7 +273,7 @@ def train_on_error(uuid):
 
 @app.celery.task
 def train_on_success(result):
-    print('run_train successfully finished')
+    print('training successfully finished')
     return {'current': 1, 'total': 1, 'status': 'Training successfully finished',
             'result': 0}
 
@@ -354,12 +354,12 @@ def compute_errors(gender_model):
                                GenderSample.checked_times,
                                GenderSampleResult.prob_neg,
                                GenderSampleResult.prob_pos). \
-        filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
-                    GenderSample.is_bad == False)). \
+        filter(and_(GenderSample.is_hard != None,  # no bad or hard samples
+                    GenderSample.is_bad != None)). \
         outerjoin(GenderUserAnnotation). \
         filter(or_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
-                   and_(GenderUserAnnotation.is_hard == False,
-                        GenderUserAnnotation.is_bad == False))). \
+                   and_(GenderUserAnnotation.is_hard != None,
+                        GenderUserAnnotation.is_bad != None))). \
         outerjoin(GenderSampleResult). \
         filter(and_(GenderSampleResult.id != None,
                     GenderSampleResult.model_id == gender_model.id)).all()
@@ -525,7 +525,7 @@ def test_on_error(uuid):
 
 @app.celery.task
 def test_on_success(result):
-    print('run_train successfully finished')
+    print('testing successfully finished')
     return {'current': 1, 'total': 1, 'status': 'Testing successfully finished',
             'result': 0}
 
@@ -560,7 +560,7 @@ def train_k_folds_on_error(uuid):
 
 @app.celery.task
 def train_k_folds_on_success(result):
-    print('Training successfully finished')
+    print('training k-fold successfully finished')
     return {'current': 1, 'total': 1, 'status': 'Training successfully finished',
             'result': 0}
 
@@ -639,7 +639,7 @@ def test_k_folds_on_error(uuid):
 
 @app.celery.task
 def test_k_folds_on_success(result):
-    print('Testing successfully finished')
+    print('testing k-fold successfully finished')
     return {'current': 1, 'total': 1, 'status': 'Testing successfully finished',
             'result': 0}
 

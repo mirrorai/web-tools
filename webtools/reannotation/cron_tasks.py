@@ -11,6 +11,10 @@ from .celery_tasks import run_train_k_folds, train_k_folds_on_error, train_k_fol
 from .celery_tasks import run_test_k_folds, test_k_folds_on_error, test_k_folds_on_success
 from .celery_tasks import update_gender_cv_partition
 
+import os.path
+import os
+from shutil import copyfile
+
 @app.celery.task()
 def annotation_statistics():
     utc = arrow.utcnow()
@@ -54,10 +58,11 @@ def auto_training():
     if not trigger_train:
         finished_ts = get_finished_time_task(problem_name, problem_type)
         min_hours = app.config.get('TRIGGER_TRAIN_MIN_HOURS')
+        print('min_hours: {}'.format(min_hours))
         if finished_ts is not None:
             trigger_min_ts = finished_ts.shift(hours=min_hours)
             if arrow.utcnow() < trigger_min_ts:
-                print('exit on time constraint')
+                print('auto-training: exit on time constraint')
                 return
 
     if get_learned_models_count(problem_name) == 0:
@@ -113,7 +118,7 @@ def auto_training():
 
             if arrow.utcnow() >= trigger_train_ts:
                 trigger_train = True
-                reason = 'time threshold'
+                reason = 'time threshold, changed samples: {}, new samples: {}'.format(n_changed_samples, n_new)
 
     if trigger_train:
         print('run auto-training: {}'.format(reason))
@@ -138,6 +143,8 @@ def auto_training():
         msg += '{}, run training'.format(reason)
 
         send_slack_message(msg)
+    else:
+        print('auto-training: exit')
 
 @app.celery.task()
 def auto_training_k_folds():
@@ -290,7 +297,7 @@ def auto_testing():
         if finished_ts is not None:
             trigger_min_ts = finished_ts.shift(minutes=min_minutes)
             if arrow.utcnow() < trigger_min_ts:
-                print('exit on time constraint')
+                print('auto-testing: exit on time constraint')
                 return
 
     # find not tested samples
@@ -343,12 +350,14 @@ def auto_testing():
                                     link_error=test_on_error.s(), link=test_on_success.s(),
                                     queue='learning')
 
-        print('{} task successfully started'.format(task.id))
+        print('auto-testing: {} task successfully started'.format(task.id))
 
         msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
         msg += '{}, run testing'.format(reason)
 
         send_slack_message(msg)
+    else:
+        print('do not run auto-testing: no changed samples, not all samples are checked')
 
 @app.celery.task()
 def auto_testing_k_folds():
@@ -429,6 +438,8 @@ def auto_testing_k_folds():
             task_ids.append(task_id)
             folds_tested.append(k_fold)
             print('{} task successfully started'.format(task.id))
+        else:
+            print('k-fold {}: do not run testing: no changed samples, not all samples are checked'.format(k_fold))
 
     if len(task_ids) > 0:
         msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
@@ -438,5 +449,99 @@ def auto_testing_k_folds():
 
 @app.celery.task()
 def auto_deploy():
-    print('auto deploy')
+    from git import Repo
+
+    problem_name = 'gender'
+    problem_type = 'deploy'
+
+    if check_working_tasks(problem_name, problem_type):
+        print('auto-deploy: already running, skip')
+        return
+
+    if get_learned_models_count(problem_name) == 0:
+        print('auto-deploy: no models')
+        return
+
+    top_model =  app.db.session.query(LearnedModel, AccuracyMetric).\
+        filter(and_(LearnedModel.k_fold==None,
+                    LearnedModel.prefix!=None,
+                    LearnedModel.epoch!=None,
+                    LearnedModel.problem_name==problem_name)).\
+        join(AccuracyMetric).order_by(desc(AccuracyMetric.accuracy)).first()
+
+    if top_model is None:
+        print('auto-deploy: models is not tested')
+        return
+
+    if top_model.LearnedModel.is_deployed:
+        print('auto-deploy: model is already deployed')
+        return
+
+    trigger_deploy = False
+    reason = ''
+
+    if not trigger_deploy:
+        finished_ts = get_finished_time_task(problem_name, problem_type)
+        min_hours = app.config.get('TRIGGER_DEPLOY_MIN_HOURS')
+        if finished_ts is not None:
+            trigger_min_ts = finished_ts.shift(hours=min_hours)
+            if arrow.utcnow() < trigger_min_ts:
+                print('auto-deploy: exit on time constraint')
+                return
+
+    if not trigger_deploy:
+        min_accuracy = app.config.get('MIN_ACCURACY_TO_DEPLOY')
+        if top_model.AccuracyMetric.accuracy < min_accuracy:
+            print('auto-deploy: accuracy {} is not enough'.format(top_model.AccuracyMetric.accuracy))
+            return
+
+    trigger_deploy = True
+    print('auto-deploy: model #{}'.format(top_model.LearnedModel.id))
+
+    repos_dir = app.config.get('REPOSITORIES_FOLDER')
+
+    if not os.path.isdir(repos_dir):
+        os.mkdir(repos_dir)
+
+    gena_dirname = app.config.get('GENA_FOLDER_NAME')
+    gena_repo = os.path.join(repos_dir, gena_dirname)
+
+    if not os.path.isdir(gena_repo):
+        # git clone
+        git_url = app.config.get('GENA_GIT')
+        Repo.clone_from(git_url, gena_repo)
+
+    # git pull
+    repo = Repo(gena_repo)
+    o = repo.remotes.origin
+    o.pull()
+
+    # move file
+    params_path = '{}-{:04d}.params'.format(top_model.LearnedModel.prefix, top_model.LearnedModel.epoch)
+    symbol_path = '{}-symbol.json'.format(top_model.LearnedModel.prefix)
+
+    if not os.path.isfile(params_path):
+        print('auto-deploy: params file {} not found, exit'.format(params_path))
+        return
+
+    if not os.path.isfile(symbol_path):
+        print('auto-deploy: symbol file {} not found, exit'.format(symbol_path))
+        return
+
+    copyfile(params_path, os.path.join(repo, 'Resources', 'Nets', 'gender.params'))
+    copyfile(symbol_path, os.path.join(repo, 'Resources', 'Nets', 'gender-symbol.json'))
+
+    # git push
+    # o.push()
+
+    msg = ':rocket: *Gender*: '
+    msg += 'model #{} with accuracy={:.3f}% is deployed'.format(top_model.LearnedModel.id,
+                                                                top_model.AccuracyMetric.accuracy * 100.)
+
+    send_slack_message(msg)
+
+    top_model.LearnedModel.is_deployed = True
+    app.db.session.flush()
+    app.db.session.commit()
+
     return
