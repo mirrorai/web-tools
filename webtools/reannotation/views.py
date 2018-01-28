@@ -31,7 +31,7 @@ from webtools.wrappers import nocache
 
 from .models import Image, GenderSample, GenderUserAnnotation, LearningTask, LearnedModel,\
     AccuracyMetric, GenderSampleResult
-from .utils import clear_old_tasks, check_working_tasks, get_learned_models_count
+from .utils import clear_old_tasks, check_working_tasks, get_learned_models_count, get_all_k_folds_learned_models_count
 
 from .forms import GenderDataForm
 from .celery_tasks import dump_task
@@ -215,7 +215,7 @@ def get_problems():
 def get_gender_problem_data():
     gender_stats = get_gender_stats()
     models_count = get_learned_models_count('gender')
-    models_k_folds_count = get_learned_models_count('gender', k_folds=True)
+    models_k_folds_count = get_all_k_folds_learned_models_count('gender')
     tasks = get_learning_tasks('gender')
     task_filter(tasks, models_count, models_k_folds_count, gender_stats['total_annotated'])
     tasks = task_to_ordered_list(tasks)
@@ -727,22 +727,22 @@ def trigger_train(problem_name):
     return jsonify(status='ok', problems=get_problems(), task_id=task_id, message='training started.'), 202
 
 def trigger_train_gender():
-
-    if check_working_tasks('gender', 'train'):
+    problem_name = 'gender'
+    if check_working_tasks(problem_name, 'train'):
         print('attempted to start training while other task not finished')
         return None
 
-    clear_old_tasks('gender', 'train')
+    clear_old_tasks(problem_name, 'train')
 
     task_id = celery.uuid()
     utc = arrow.utcnow()
-    task_db = LearningTask(problem_name='gender', problem_type='train',
+    task_db = LearningTask(problem_name=problem_name, problem_type='train',
                            task_id=task_id, started_ts=utc)
     app.db.session.add(task_db)
     app.db.session.flush()
     app.db.session.commit()
 
-    task = run_train.apply_async(('gender',), task_id=task_id,
+    task = run_train.apply_async((problem_name,), task_id=task_id,
                                  link_error=train_on_error.s(), link=train_on_success.s(),
                                  queue='learning')
 
@@ -776,25 +776,26 @@ def trigger_test(problem_name):
     return jsonify(status='ok', problems=get_problems(), task_id=task_id, message='testing started.'), 202
 
 def trigger_test_gender():
-    if check_working_tasks('gender', 'test'):
+    problem_name = 'gender'
+    if check_working_tasks(problem_name, 'test'):
         print('attempted to start testing while other task not finished')
         return None
 
-    if get_learned_models_count('gender') == 0:
+    if get_learned_models_count(problem_name) == 0:
         print('no models for testing')
         return None
 
-    clear_old_tasks('gender', 'test')
+    clear_old_tasks(problem_name, 'test')
 
     task_id = celery.uuid()
     utc = arrow.utcnow()
-    task_db = LearningTask(problem_name='gender',problem_type='test',
+    task_db = LearningTask(problem_name=problem_name,problem_type='test',
                            task_id=task_id,started_ts=utc)
     app.db.session.add(task_db)
     app.db.session.flush()
     app.db.session.commit()
 
-    task = run_test.apply_async(('gender',), task_id=task_id,
+    task = run_test.apply_async((problem_name,), task_id=task_id,
                                 link_error=test_on_error.s(), link=test_on_success.s(),
                                 queue='learning')
 
@@ -829,32 +830,37 @@ def trigger_train_k_folds(problem_name):
     return jsonify(status='ok', problems=get_problems(), tasks_id=task_ids, message='training started.'), 202
 
 def trigger_train_k_folds_gender():
+    problem_name = 'gender'
     problem_type = 'train_k_folds'
-    if check_working_tasks('gender', problem_type):
-        print('attempted to start training while other task not finished')
-        return None
-
-    clear_old_tasks('gender', problem_type)
 
     k_folds = app.config.get('CV_PARTITION_FOLDS')
 
     task_ids = []
     for k_fold in range(k_folds):
+
+        if check_working_tasks(problem_name, problem_type, k_fold=k_fold):
+            print('k-fold {}: attempted to start training while other task not finished'.format(k_fold))
+            continue
+
+        clear_old_tasks(problem_name, problem_type, k_fold=k_fold)
+
         task_id = celery.uuid()
         utc = arrow.utcnow()
-        task_db = LearningTask(problem_name='gender',problem_type=problem_type,
+        task_db = LearningTask(problem_name=problem_name,problem_type=problem_type,
                                task_id=task_id,started_ts=utc,k_fold=k_fold)
+
         app.db.session.add(task_db)
         app.db.session.flush()
         app.db.session.commit()
 
-        task = run_train_k_folds.apply_async(('gender', k_fold), task_id=task_id,
+        task = run_train_k_folds.apply_async((problem_name, k_fold), task_id=task_id,
                                              link_error=train_k_folds_on_error.s(),
                                              link=train_k_folds_on_success.s(),
                                              queue='learning')
         task_ids.append(task_id)
 
-    print('{} tasks successfully started'.format(len(task_ids)))
+    if len(task_ids) > 0:
+        print('{} tasks successfully started'.format(len(task_ids)))
     return task_ids
 
 @app.route('/stop_train_k_folds/<string:task_ids_str>', methods=['GET', 'POST'])
@@ -887,32 +893,40 @@ def trigger_test_k_folds(problem_name):
     return jsonify(status='ok', problems=get_problems(), tasks_id=task_ids, message='training started.'), 202
 
 def trigger_test_k_folds_gender():
+    problem_name = 'gender'
     problem_type = 'test_k_folds'
-    if check_working_tasks('gender', problem_type):
-        print('attempted to start training while other task not finished')
-        return None
-
-    clear_old_tasks('gender', problem_type)
 
     k_folds = app.config.get('CV_PARTITION_FOLDS')
 
     task_ids = []
     for k_fold in range(k_folds):
+
+        if check_working_tasks(problem_name, problem_type, k_fold=k_fold):
+            print('k-fold {}: attempted to start training while other task not finished'.format(k_fold))
+            continue
+
+        if get_learned_models_count(problem_name, k_fold=k_fold) == 0:
+            print('k-fold {}: no models for testing'.format(k_fold))
+            continue
+
+        clear_old_tasks(problem_name, problem_type, k_fold=k_fold)
+
         task_id = celery.uuid()
         utc = arrow.utcnow()
-        task_db = LearningTask(problem_name='gender',problem_type=problem_type,
+        task_db = LearningTask(problem_name=problem_name,problem_type=problem_type,
                                task_id=task_id,started_ts=utc,k_fold=k_fold)
         app.db.session.add(task_db)
         app.db.session.flush()
         app.db.session.commit()
 
-        task = run_test_k_folds.apply_async(('gender', k_fold), task_id=task_id,
+        task = run_test_k_folds.apply_async((problem_name, k_fold), task_id=task_id,
                                             link_error=test_k_folds_on_error.s(),
                                             link=test_k_folds_on_success.s(),
                                             queue='learning')
         task_ids.append(task_id)
 
-    print('{} tasks successfully started'.format(len(task_ids)))
+    if len(task_ids) > 0:
+        print('{} tasks successfully started'.format(len(task_ids)))
     return task_ids
 
 @app.route('/stop_test_k_folds/<string:task_ids_str>', methods=['GET', 'POST'])
@@ -974,54 +988,6 @@ def task_status(task_id):
             'total': 1,
             'status': str(task.info),  # this is the exception raised
         }
-    return jsonify(response)
-
-def get_task_status(task_id):
-    task = dump_task.AsyncResult(task_id)
-    if task.state == 'PENDING':
-        # job did not start yet
-        response = {
-            'state': task.state,
-            'current': 0,
-            'total': 1,
-            'status': 'Pending...'
-        }
-    elif task.state == 'REVOKED':
-        # job finished
-        response = {
-            'state': task.state,
-            'current': 1,
-            'total': 1,
-            'status': 'Stopped.'
-        }
-    elif task.state != 'FAILURE':
-        response = {
-            'state': task.state,
-            'current': task.info.get('current', 0),
-            'total': task.info.get('total', 1),
-            'status': task.info.get('status', '')
-        }
-    else:
-        # something went wrong in the background job
-        response = {
-            'state': task.state,
-            'current': 1,
-            'total': 1,
-            'status': str(task.info),  # this is the exception raised
-        }
-    return response
-
-@app.route('/status/')
-@login_required
-def status():
-    admin_permission.test(403)
-    current_tasks = LearningTask.query.all()
-    response = {}
-    for db_task in current_tasks:
-        problem_name = db_task.problem_name
-        if problem_name not in response:
-            response[problem_name] = []
-        response[problem_name].append(get_task_status(db_task.task_id))
     return jsonify(response)
 
 @app.route('/reannotation_data/')

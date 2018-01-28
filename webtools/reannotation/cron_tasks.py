@@ -7,6 +7,9 @@ from webtools.utils import  send_slack_message
 from .utils import clear_old_tasks, check_working_tasks, get_learned_models_count, get_finished_time_task
 import celery
 from .celery_tasks import test_on_error, test_on_success, run_test, run_train, train_on_error, train_on_success
+from .celery_tasks import run_train_k_folds, train_k_folds_on_error, train_k_folds_on_success
+from .celery_tasks import run_test_k_folds, test_k_folds_on_error, test_k_folds_on_success
+from .celery_tasks import update_gender_cv_partition
 
 @app.celery.task()
 def annotation_statistics():
@@ -38,35 +41,70 @@ def annotation_statistics():
 @app.celery.task()
 def auto_training():
     problem_name = 'gender'
+    problem_type = 'train'
 
-    if check_working_tasks(problem_name, 'train'):
+    if check_working_tasks(problem_name, problem_type):
         print('auto-training: training already running, skip')
         return
 
     trigger_train = False
     reason = ''
 
+    # check time
+    if not trigger_train:
+        finished_ts = get_finished_time_task(problem_name, problem_type)
+        min_hours = app.config.get('TRIGGER_TRAIN_MIN_HOURS')
+        if finished_ts is not None:
+            trigger_min_ts = finished_ts.shift(hours=min_hours)
+            if arrow.utcnow() < trigger_min_ts:
+                print('exit on time constraint')
+                return
+
     if get_learned_models_count(problem_name) == 0:
         reason = 'first model'
         trigger_train = True
 
+    # number of new samples (new annotated or added from script)
+    n_new = 0
+    if not trigger_train:
+
+        n_samples = app.db.session.query(GenderSample). \
+            filter(and_(GenderSample.is_hard == False,
+                        GenderSample.is_bad == False,
+                        GenderSample.always_test == False)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(or_(and_(GenderUserAnnotation.id == None,
+                            GenderSample.is_annotated_gt),
+                       and_(GenderUserAnnotation.id != None,
+                            GenderUserAnnotation.is_hard == False,
+                            GenderUserAnnotation.is_bad == False))).count()
+
+        model = LearnedModel.query.filter(and_(LearnedModel.problem_name == problem_name,
+                                               LearnedModel.k_fold == None,
+                                               LearnedModel.finished_ts != None)).first()
+        if model:
+            n_new = n_samples - model.num_samples
+            min_samples = app.config.get('TRIGGER_TRAIN_MIN_SAMPLES')
+            if n_new >= min_samples:
+                trigger_train = True
+                reason = '{} new samples'.format(n_new)
+
+    # number of changed samples (annotated new or changed old samples through web-interface)
+    n_changed_samples = 0
     if not trigger_train:
         n_changed_samples = app.db.session.query(GenderSample). \
             filter(and_(GenderSample.always_test == False,
                         GenderSample.is_checked == True,
                         GenderSample.is_changed == True)).count()
 
-        if n_changed_samples == 0:
-            print('no changed samples')
-            return
-
         min_samples = app.config.get('TRIGGER_TRAIN_MIN_SAMPLES')
         if n_changed_samples >= min_samples:
             trigger_train = True
             reason = '{} samples have been annotated'.format(n_changed_samples)
 
-    if not trigger_train:
-        finished_ts = get_finished_time_task(problem_name, 'train')
+    # train if n_changed > 0 and time constraint is satisfied
+    if not trigger_train and (n_changed_samples > 0 or n_new > 0):
+        finished_ts = get_finished_time_task(problem_name, problem_type)
 
         if finished_ts is not None:
             last_train_ts = finished_ts
@@ -80,11 +118,11 @@ def auto_training():
     if trigger_train:
         print('run auto-training')
 
-        clear_old_tasks(problem_name, 'train')
+        clear_old_tasks(problem_name, problem_type)
 
         task_id = celery.uuid()
         utc = arrow.utcnow()
-        task_db = LearningTask(problem_name=problem_name, problem_type='train',
+        task_db = LearningTask(problem_name=problem_name, problem_type=problem_type,
                                task_id=task_id, started_ts=utc)
         app.db.session.add(task_db)
         app.db.session.flush()
@@ -101,12 +139,127 @@ def auto_training():
 
         send_slack_message(msg)
 
+@app.celery.task()
+def auto_training_k_folds():
+    print('auto-training k-folds')
+
+    update_gender_cv_partition()
+
+    problem_name = 'gender'
+    problem_type = 'train_k_folds'
+
+    k_folds = app.config.get('CV_PARTITION_FOLDS')
+
+    task_ids = []
+    for k_fold in range(k_folds):
+
+        trigger_train = False
+        reason = ''
+
+        if check_working_tasks(problem_name, problem_type, k_fold=k_fold):
+            print('k-fold {}: attempted to start training while other task not finished'.format(k_fold))
+            continue
+
+        # check time
+        if not trigger_train:
+            finished_ts = get_finished_time_task(problem_name, problem_type, k_fold=k_fold)
+            min_hours = app.config.get('TRIGGER_TRAIN_K_FOLDS_MIN_HOURS')
+            if finished_ts is not None:
+                trigger_min_ts = finished_ts.shift(hours=min_hours)
+                if arrow.utcnow() < trigger_min_ts:
+                    print('k-fold {}: exit on time constraint'.format(k_fold))
+                    continue
+
+        # train if no models exist
+        if get_learned_models_count(problem_name, k_fold=k_fold) == 0:
+            reason = 'first model'
+            trigger_train = True
+
+        # number of new samples (new annotated or added from script)
+        n_new = 0
+        if not trigger_train:
+            n_samples = app.db.session.query(GenderSample). \
+                filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+                            GenderSample.is_bad == False,
+                            GenderSample.always_test == False,
+                            GenderSample.k_fold != None,
+                            GenderSample.k_fold != k_fold)). \
+                outerjoin(GenderUserAnnotation). \
+                filter(or_(and_(GenderUserAnnotation.id == None,
+                                GenderSample.is_annotated_gt),
+                           and_(GenderUserAnnotation.id != None,
+                                GenderUserAnnotation.is_hard == False,
+                                GenderUserAnnotation.is_bad == False))).count()
+
+            model = LearnedModel.query.filter(and_(LearnedModel.problem_name == problem_name,
+                                                   LearnedModel.k_fold == None,
+                                                   LearnedModel.finished_ts != None)).first()
+            if model:
+                n_new = n_samples - model.num_samples
+                min_samples = app.config.get('TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES')
+                if n_new >= min_samples:
+                    trigger_train = True
+                    reason = '{} new samples'.format(n_new)
+
+        # number of changed samples
+        n_changed_samples = 0
+        if not trigger_train:
+            n_changed_samples = app.db.session.query(GenderSample). \
+                filter(and_(GenderSample.always_test == False,
+                            GenderSample.k_fold != None,
+                            GenderSample.k_fold != k_fold,
+                            GenderSample.is_checked == True,
+                            GenderSample.is_changed == True)).count()
+
+            min_samples = app.config.get('TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES')
+            if n_changed_samples >= min_samples:
+                trigger_train = True
+                reason = '{} samples have been annotated'.format(n_changed_samples)
+
+        if not trigger_train and (n_changed_samples > 0 or n_new > 0):
+            finished_ts = get_finished_time_task(problem_name, problem_type, k_fold=k_fold)
+
+            if finished_ts is not None:
+                last_train_ts = finished_ts
+                trigger_max_hours = app.config.get('TRIGGER_TRAIN_K_FOLDS_MAX_HOURS')
+                trigger_train_ts = last_train_ts.shift(hours=trigger_max_hours)
+
+                if arrow.utcnow() >= trigger_train_ts:
+                    trigger_train = True
+                    reason = 'time threshold'
+
+        if trigger_train:
+            print('run k-fold {} auto-training'.format(k_fold))
+            clear_old_tasks(problem_name, problem_type, k_fold=k_fold)
+
+            task_id = celery.uuid()
+            utc = arrow.utcnow()
+            task_db = LearningTask(problem_name=problem_name, problem_type=problem_type,
+                                   task_id=task_id, started_ts=utc, k_fold=k_fold)
+
+            app.db.session.add(task_db)
+            app.db.session.flush()
+            app.db.session.commit()
+
+            task = run_train_k_folds.apply_async((problem_name, k_fold), task_id=task_id,
+                                                 link_error=train_k_folds_on_error.s(),
+                                                 link=train_k_folds_on_success.s(),
+                                                 queue='learning')
+            task_ids.append(task_id)
+            print('{} task successfully started'.format(task.id))
+
+    if len(task_ids) > 0:
+        msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
+        msg += 'run training for folds='.format(','.join([str(id) for id in task_ids]))
+
+        send_slack_message(msg)
 
 @app.celery.task()
 def auto_testing():
     problem_name = 'gender'
+    problem_type = 'test'
 
-    if check_working_tasks(problem_name, 'test'):
+    if check_working_tasks(problem_name, problem_type):
         print('auto-testing: testing already running, skip')
         return
 
@@ -117,14 +270,19 @@ def auto_testing():
     do_run_test = False
     reason = ''
 
-    n_not_tested_models = LearnedModel.query.filter(LearnedModel.problem_name == problem_name).\
-        outerjoin(AccuracyMetric).filter(AccuracyMetric.id==None).count()
-    if n_not_tested_models > 0:
-        reason = 'some models is not tested'
-        do_run_test = True
-
+    # check number of models not tested
     if not do_run_test:
-        finished_ts = get_finished_time_task(problem_name, 'test')
+        n_not_tested_models = LearnedModel.query.filter(and_(LearnedModel.problem_name == problem_name,
+                                                             LearnedModel.finished_ts != None)).\
+            outerjoin(AccuracyMetric).filter(AccuracyMetric.id==None).count()
+
+        if n_not_tested_models > 0:
+            reason = 'some models is not tested'
+            do_run_test = True
+
+    # check time
+    if not do_run_test:
+        finished_ts = get_finished_time_task(problem_name, problem_type)
         min_minutes = app.config.get('TRIGGER_TEST_MIN_MINUTES')
         if finished_ts is not None:
             trigger_min_ts = finished_ts.shift(minutes=min_minutes)
@@ -132,6 +290,7 @@ def auto_testing():
                 print('exit on time constraint')
                 return
 
+    # find not tested samples
     if not do_run_test:
         n_not_tested_samples = app.db.session.query(GenderSample). \
             filter(GenderSample.always_test == True). \
@@ -140,6 +299,7 @@ def auto_testing():
             reason = 'new samples have been added'
             do_run_test = True
 
+    # find changed samples
     if not do_run_test:
         n_changed_samples = app.db.session.query(GenderSample). \
             filter(and_(GenderSample.always_test == True,
@@ -149,14 +309,28 @@ def auto_testing():
             reason = '{} samples have been changed'.format(n_changed_samples)
             do_run_test = True
 
+    # check number of not checked samples
+    if not do_run_test:
+        n_not_checked_samples = app.db.session.query(GenderSample). \
+            filter(and_(GenderSample.always_test == True,
+                        GenderSample.is_checked == False)).count()
+
+        n_samples = app.db.session.query(GenderSample). \
+            filter(GenderSample.always_test == True).count()
+
+        if n_not_checked_samples == 0 and n_samples > 0:
+            reason = 'all samples have been checked'
+            do_run_test = True
+
+    # run testing
     if do_run_test:
         print('run auto-testing')
 
-        clear_old_tasks('gender', 'test')
+        clear_old_tasks(problem_name, problem_type)
 
         task_id = celery.uuid()
         utc = arrow.utcnow()
-        task_db = LearningTask(problem_name=problem_name, problem_type='test',
+        task_db = LearningTask(problem_name=problem_name, problem_type=problem_type,
                                task_id=task_id, started_ts=utc)
         app.db.session.add(task_db)
         app.db.session.flush()
@@ -173,6 +347,89 @@ def auto_testing():
 
         send_slack_message(msg)
 
+@app.celery.task()
+def auto_test_k_folds():
+    print('auto-testing k-folds')
+
+    problem_name = 'gender'
+    problem_type = 'test_k_folds'
+
+    k_folds = app.config.get('CV_PARTITION_FOLDS')
+
+    task_ids = []
+    for k_fold in range(k_folds):
+
+        trigger_test = False
+        reason = ''
+
+        if check_working_tasks(problem_name, problem_type, k_fold=k_fold):
+            print('k-fold {}: attempted to start testing while other task not finished'.format(k_fold))
+            continue
+
+        if get_learned_models_count(problem_name, k_fold=k_fold) == 0:
+            print('k-fold {}: no models to test'.format(k_fold))
+            continue
+
+        # check time
+        if not trigger_test:
+            finished_ts = get_finished_time_task(problem_name, problem_type, k_fold=k_fold)
+            min_minutes = app.config.get('TRIGGER_TEST_K_FOLDS_MIN_MINUTES')
+            if finished_ts is not None:
+                trigger_min_ts = finished_ts.shift(minutes=min_minutes)
+                if arrow.utcnow() < trigger_min_ts:
+                    print('k-fold {}: exit on time constraint'.format(k_fold))
+                    continue
+
+        # check not tested samples
+        if not trigger_test:
+            n_not_tested_samples = app.db.session.query(GenderSample). \
+                filter(and_(GenderSample.always_test == False,
+                            GenderSample.k_fold == k_fold)). \
+                outerjoin(GenderSampleResult).filter(GenderSampleResult.id == None).count()
+            if n_not_tested_samples > 0:
+                reason = 'new samples have been added'
+                trigger_test = True
+
+        # check number of not checked samples
+        if not trigger_test:
+            n_not_checked_samples = app.db.session.query(GenderSample). \
+                filter(and_(GenderSample.always_test == False,
+                            GenderSample.k_fold == k_fold,
+                            GenderSample.is_checked == False)).count()
+
+            n_samples = app.db.session.query(GenderSample). \
+                filter(and_(GenderSample.always_test == False,
+                            GenderSample.k_fold == k_fold)).count()
+
+            if n_not_checked_samples == 0 and n_samples > 0:
+                reason = 'all samples have been checked'
+                trigger_test = True
+
+        if trigger_test:
+            print('run k-fold {} auto-testing'.format(k_fold))
+
+            clear_old_tasks(problem_name, problem_type, k_fold=k_fold)
+
+            task_id = celery.uuid()
+            utc = arrow.utcnow()
+            task_db = LearningTask(problem_name=problem_name, problem_type=problem_type,
+                                   task_id=task_id, started_ts=utc, k_fold=k_fold)
+            app.db.session.add(task_db)
+            app.db.session.flush()
+            app.db.session.commit()
+
+            task = run_test_k_folds.apply_async((problem_name, k_fold), task_id=task_id,
+                                                link_error=test_k_folds_on_error.s(),
+                                                link=test_k_folds_on_success.s(),
+                                                queue='learning')
+            task_ids.append(task_id)
+            print('{} task successfully started'.format(task.id))
+
+    if len(task_ids) > 0:
+        msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
+        msg += 'run testing for folds='.format(','.join([str(id) for id in task_ids]))
+
+        send_slack_message(msg)
 
 @app.celery.task()
 def auto_deploy():

@@ -215,7 +215,7 @@ def run_gender_train(updater, task_id, k_fold=None):
         updater.push_rescale(0.01, 0.99)
 
         # create model
-        gender_model = LearnedModel(task_id=task_id, num_samples=len(samples),
+        gender_model = LearnedModel(task_id=task_id, num_samples=len(samples), k_fold=k_fold,
                                     problem_name='gender', started_ts=arrow.utcnow())
         app.db.session.add(gender_model)
         app.db.session.flush()
@@ -247,8 +247,6 @@ def run_gender_train(updater, task_id, k_fold=None):
         model.exp_dir = exp_dir
         model.prefix = snapshot_prefix
         model.epoch = epoch
-        if k_fold is not None:
-            model.k_fold = k_fold
         model.finished_ts = arrow.utcnow()
         app.db.session.flush()
         app.db.session.commit()
@@ -257,8 +255,12 @@ def run_gender_train(updater, task_id, k_fold=None):
 
         model_id = model.id
 
+        # report slack
+        report_gender_train(model)
+
     updater.update_state(state='PROGRESS', progress=1.0, status='Releasing GPU..')
     release_gpu(task_id)
+
     updater.finish(arrow.now())
 
     return model_id
@@ -735,4 +737,18 @@ def report_gender_metric():
         msg += '{}'.format(url_for('metrics', problem=problem_name))
 
     msg = ':loudspeaker: Test finished\n*Gender:*\n{}'.format(msg)
+    send_slack_message(msg)
+
+def report_gender_train(model):
+
+    if model.finished_ts is None:
+        return
+
+    elapsed = model.finished_ts - model.started_ts
+
+    msg = 'Model id: #{}\n'.format(model.id)
+    msg += 'Number of training samples: {}\n'.format(model.num_samples)
+    msg += 'Training time: {}'.format(model.finished_ts.humanize(model.started_ts, only_distance=True))
+
+    msg = ':loudspeaker: Train finished\n*Gender:*\n{}'.format(msg)
     send_slack_message(msg)

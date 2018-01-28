@@ -177,9 +177,9 @@ class AddImageDB(Command):
             # create sample
             if is_male != -1:
                 sample = GenderSample(image_id=image.id, is_male=is_male, k_fold=k_fold,
-                                      is_annotated_gt=True, always_test=test_only, changed_ts=ts)
+                                      is_annotated_gt=True, always_test=test_only, is_changed=True, changed_ts=ts)
             else:
-                sample = GenderSample(image_id=image.id, k_fold=k_fold, always_test=test_only, changed_ts=ts)
+                sample = GenderSample(image_id=image.id, k_fold=k_fold, always_test=test_only, is_changed=True, changed_ts=ts)
             # add to db
             app.db.session.add(sample)
             app.db.session.flush()
@@ -273,7 +273,9 @@ class CleanWasteModels(Command):
             models = LearnedModel.query.filter_by(problem_name=problem_name).all()
             allowed_exps_dirs = {'base_exp': True}
             for model in models:
-                allowed_exps_dirs[basename(model.exp_dir)] = True
+                exp_fold = 'fold{}'.format(model.k_fold) if model.k_fold is not None else 'main'
+                exp_dir = 'exp{}_{}'.format(model.id, exp_fold)
+                allowed_exps_dirs[exp_dir] = True
 
             keeped, removed = 0, 0
             for subdir in subdirs:
