@@ -10,6 +10,7 @@ from .celery_tasks import test_on_error, test_on_success, run_test, run_train, t
 from .celery_tasks import run_train_k_folds, train_k_folds_on_error, train_k_folds_on_success
 from .celery_tasks import run_test_k_folds, test_k_folds_on_error, test_k_folds_on_success
 from .celery_tasks import update_gender_cv_partition
+from .celery_tasks import run_deploy, deploy_on_error, deploy_on_success
 
 import os.path
 import os
@@ -449,7 +450,6 @@ def auto_testing_k_folds():
 
 @app.celery.task()
 def auto_deploy():
-    from git import Repo
 
     problem_name = 'gender'
     problem_type = 'deploy'
@@ -496,52 +496,23 @@ def auto_deploy():
             return
 
     trigger_deploy = True
-    print('auto-deploy: model #{}'.format(top_model.LearnedModel.id))
 
-    repos_dir = app.config.get('REPOSITORIES_FOLDER')
+    if trigger_deploy:
+        print('auto-deploy: model #{}'.format(top_model.LearnedModel.id))
 
-    if not os.path.isdir(repos_dir):
-        os.mkdir(repos_dir)
+        task_id = celery.uuid()
+        utc = arrow.utcnow()
+        task_db = LearningTask(problem_name=problem_name, problem_type=problem_type,
+                               task_id=task_id, started_ts=utc)
 
-    gena_dirname = app.config.get('GENA_FOLDER_NAME')
-    gena_repo = os.path.join(repos_dir, gena_dirname)
+        app.db.session.add(task_db)
+        app.db.session.flush()
+        app.db.session.commit()
 
-    if not os.path.isdir(gena_repo):
-        # git clone
-        git_url = app.config.get('GENA_GIT')
-        Repo.clone_from(git_url, gena_repo)
+        task = run_deploy.apply_async((problem_name, top_model.LearnedModel.id), task_id=task_id,
+                                    link_error=deploy_on_error.s(), link=deploy_on_success.s(),
+                                    queue='learning')
 
-    # git pull
-    repo = Repo(gena_repo)
-    o = repo.remotes.origin
-    o.pull()
-
-    # move file
-    params_path = '{}-{:04d}.params'.format(top_model.LearnedModel.prefix, top_model.LearnedModel.epoch)
-    symbol_path = '{}-symbol.json'.format(top_model.LearnedModel.prefix)
-
-    if not os.path.isfile(params_path):
-        print('auto-deploy: params file {} not found, exit'.format(params_path))
-        return
-
-    if not os.path.isfile(symbol_path):
-        print('auto-deploy: symbol file {} not found, exit'.format(symbol_path))
-        return
-
-    copyfile(params_path, os.path.join(repo, 'Resources', 'Nets', 'gender.params'))
-    copyfile(symbol_path, os.path.join(repo, 'Resources', 'Nets', 'gender-symbol.json'))
-
-    # git push
-    # o.push()
-
-    msg = ':rocket: *Gender*: '
-    msg += 'model #{} with accuracy={:.3f}% is deployed'.format(top_model.LearnedModel.id,
-                                                                top_model.AccuracyMetric.accuracy * 100.)
-
-    send_slack_message(msg)
-
-    top_model.LearnedModel.is_deployed = True
-    app.db.session.flush()
-    app.db.session.commit()
+        print('auto-deploy: {} task successfully started'.format(task.id))
 
     return

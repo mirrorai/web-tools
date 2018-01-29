@@ -36,7 +36,6 @@ class Config(object):
     TRAINROOM_FOLDER = os.path.join(basedir, 'trainroom/')
     REPOSITORIES_FOLDER = os.path.join(basedir, 'repositories/')
     GENA_FOLDER_NAME = 'gena'
-    GENA_GIT = 'https://github.com/mirrorai/gena.git'
     LIMIT_IMAGES_LOAD = 0
 
     CV_PARTITION_FOLDS = 4
@@ -46,20 +45,20 @@ class Config(object):
     SEND_EXPIRE_MIN = 4
     KEEP_TOP_MODELS_CNT = 3
 
-    TRIGGER_TRAIN_MIN_SAMPLES = 5
-    TRIGGER_TRAIN_MAX_HOURS = 0
-    TRIGGER_TRAIN_MIN_HOURS = 0
+    TRIGGER_TRAIN_MIN_SAMPLES = 1000
+    TRIGGER_TRAIN_MAX_HOURS = 24
+    TRIGGER_TRAIN_MIN_HOURS = 3
 
-    TRIGGER_TEST_MIN_MINUTES = 3
+    TRIGGER_TEST_MIN_MINUTES = 15
 
-    TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES = 10
-    TRIGGER_TRAIN_K_FOLDS_MAX_HOURS = 0
-    TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 0
+    TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES = 1000
+    TRIGGER_TRAIN_K_FOLDS_MAX_HOURS = 24
+    TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 3
 
-    TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 3
+    TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 15
 
-    MIN_ACCURACY_TO_DEPLOY = 0.90
-    TRIGGER_DEPLOY_MIN_HOURS = 0 #3
+    MIN_ACCURACY_TO_DEPLOY = 0.98
+    TRIGGER_DEPLOY_MIN_HOURS = 3
 
     GPU_IDS = [3]
 
@@ -75,6 +74,7 @@ class Config(object):
 
     GIT_LOGIN = os.environ.get('GIT_LOGIN')
     GIT_PASS = os.environ.get('GIT_PASS')
+    GENA_GIT = 'https://{}:{}@github.com/mirrorai/gena.git'.format(GIT_LOGIN, GIT_PASS)
 
     SLACK_API_TOKEN = os.environ.get('SLACK_API_TOKEN')
 
@@ -130,19 +130,19 @@ class Config(object):
         },
         'auto_train_k_folds_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training_k_folds',
-            'schedule': timedelta(minutes=20)
+            'schedule': timedelta(minutes=30)
         },
         'auto_test_k_folds_check_every_5_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing_k_folds',
-            'schedule': timedelta(minutes=20)
+            'schedule': timedelta(minutes=30)
         },
         'annotation_statistics': {
             'task': 'webtools.reannotation.cron_tasks.annotation_statistics',
             'schedule': crontab(minute=0, hour=9)
         },
-        'auto_deploy_check_every_5_minutes': {
+        'auto_deploy_check_every_30_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_deploy',
-            'schedule': timedelta(minutes=1)
+            'schedule': timedelta(minutes=30)
         }
     }
 
@@ -205,7 +205,7 @@ class ProductionConfig(Config):
     IMAGE_CACHE_FOLDER = os.path.join(basedir, 'cache_images/')
     TEMP_FOLDER = os.path.join(basedir, 'temp_data/')
 
-    LIMIT_IMAGES_LOAD = 2000
+    # LIMIT_IMAGES_LOAD = 2000
 
     # SqlAlchemy
     MYSQL_PASS = os.environ.get('MYSQL_PASS')

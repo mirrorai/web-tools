@@ -5,12 +5,12 @@ NORM_COEFF: 1.0
 PREPARE_SIZE: [108, 144]
 INPUT_SHAPE: [96, 128]
 CLS_TYPE: 'gender'
-GPU_ID: 1
+GPU_ID: 3
 TRAIN:
   PRETRAINED: 'resnet-18'
-  EPOCHS: 10
+  EPOCHS: 8
   SNAPSHOT_PERIOD: 99
-  BATCH_SIZE: 16
+  BATCH_SIZE: 128
   DISPLAY_ITERS: 3
   DEBUG_IMAGES: 'visualization/train_debug'
   DISTORT:
@@ -41,7 +41,7 @@ TRAIN:
     LOW_RES_PROB: 0.25
 VALIDATION:
   DEBUG_IMAGES: 'visualization/val_debug'
-  BATCH_SIZE: 16
+  BATCH_SIZE: 64
   INTERVAL: 10
 TEST:
   DEBUG_IMAGES: 'visualization/test_debug'

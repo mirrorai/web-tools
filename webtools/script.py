@@ -166,7 +166,11 @@ class AddImageDB(Command):
         not_labeled = 0
         existed = 0
         limit = app.config.get('LIMIT_IMAGES_LOAD')
+        idx = 0
         for local_path, label in samples:
+            idx += 1
+            if idx % 1000 == 0:
+                print('processing [{}/{}]'.format(idx, len(samples)))
             img_path = join(base_dir, local_path)
             if not isfile(img_path):
                 skipped += 1

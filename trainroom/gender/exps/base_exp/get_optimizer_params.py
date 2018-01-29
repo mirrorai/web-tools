@@ -18,7 +18,7 @@ def get_optimizer_params(total_samples, cfg):
     optimizer = 'adam'
     # momentum = 0.9
     wd = 0.00001
-    epochs_steps = [30, 50, 150]
+    epochs_steps = [6]
 
     iter_steps = [int(s * total_samples / cfg.TRAIN.BATCH_SIZE) for s in epochs_steps]
     lr_sch = mx.lr_scheduler.MultiFactorScheduler(iter_steps, factor=factor_d)

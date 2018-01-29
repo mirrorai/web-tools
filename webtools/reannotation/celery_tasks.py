@@ -3,7 +3,7 @@
 from webtools import app
 import time
 import random
-from os.path import join, isdir
+from os.path import join, isdir, isfile
 from os import mkdir, makedirs
 from sqlalchemy import func, or_, and_, desc, not_
 from models import GenderSample, LearningTask, LearnedModel, AccuracyMetric, GenderUserAnnotation, GenderSampleResult
@@ -651,6 +651,112 @@ def clear_data_for_test_k_folds_task(uuid, state, status):
     app.db.session.commit()
 
     release_gpu(uuid)
+
+@app.celery.task(bind=True)
+def run_deploy(self, taskname, model_id):
+    if taskname == 'gender':
+        updater = StatusUpdater(self.request.id)
+        run_gender_deploy(updater, self.request.id, model_id)
+        updater.update_state(state='SUCCESS', progress=1.0, status='Model successfully deployed')
+        updater.finish(arrow.utcnow())
+        return dump_result()
+    else:
+        print('uknown taskname: {}'.format(taskname))
+        return dump_result()
+
+def run_gender_deploy(updater, task_id, model_id):
+    failed = False
+
+    top_model = app.db.session.query(LearnedModel, AccuracyMetric).\
+        filter(LearnedModel.id==model_id).join(AccuracyMetric).first()
+
+    if top_model is None:
+        updater.update_state(state='FAILURE', progress=1.0, status='No model to deploy')
+        updater.finish(arrow.utcnow())
+        return dump_result()
+
+    try:
+
+        from git import Repo
+
+        repos_dir = app.config.get('REPOSITORIES_FOLDER')
+
+        if not isdir(repos_dir):
+            mkdir(repos_dir)
+
+        gena_dirname = app.config.get('GENA_FOLDER_NAME')
+        gena_repo = join(repos_dir, gena_dirname)
+
+        if not isdir(gena_repo):
+            # git clone
+            git_url = app.config.get('GENA_GIT')
+            print('auto-deploy: cloning repository..')
+            Repo.clone_from(git_url, gena_repo)
+
+        # git pull
+        print('auto-deploy: pulling..')
+        repo = Repo(gena_repo)
+        o = repo.remotes.origin
+        o.pull()
+
+        # move file
+        print('auto-deploy: copying files..')
+        params_path = '{}-{:04d}.params'.format(top_model.LearnedModel.prefix, top_model.LearnedModel.epoch)
+        symbol_path = '{}-symbol.json'.format(top_model.LearnedModel.prefix)
+
+        if not isfile(params_path):
+            print('auto-deploy: params file {} not found, exit'.format(params_path))
+            return
+
+        if not isfile(symbol_path):
+            print('auto-deploy: symbol file {} not found, exit'.format(symbol_path))
+            return
+
+        copyfile(params_path, join(gena_repo, 'Resources', 'Nets', 'gender.params'))
+        copyfile(symbol_path, join(gena_repo, 'Resources', 'Nets', 'gender-symbol.json'))
+
+        # git push
+        # o.push()
+        print('auto-deploy: git commit and push')
+        repo.git.add(A=True)
+        repo.git.commit('-m', 'auto-update gender classification', author='denemmy')
+        o.push()
+
+    except Exception as e:
+        print(e)
+        failed = True
+
+    if not failed:
+        msg = ':rocket: *Gender*: '
+        msg += 'model #{} with accuracy={:.3f}% has been deployed!'.format(top_model.LearnedModel.id,
+                                                                            top_model.AccuracyMetric.accuracy * 100.)
+
+        send_slack_message(msg)
+
+        app.db.session.query(LearnedModel).update(dict(is_deployed=False))
+
+        top_model.LearnedModel.is_deployed = True
+        app.db.session.flush()
+        app.db.session.commit()
+
+@app.celery.task
+def deploy_on_success(result):
+    print('deploying successfully finished')
+    return {'current': 1, 'total': 1, 'status': 'Testing successfully finished',
+            'result': 0}
+
+@app.celery.task
+def deploy_on_error(uuid):
+    clear_data_for_deploy_task(uuid, 'FAILURE', 'Error occurred while deploying')
+    return {'current': 1, 'total': 1, 'status': 'Error during deploying occured',
+            'result': 0}
+
+def clear_data_for_deploy_task(uuid, state, status):
+    tasks = LearningTask.query.filter_by(task_id=uuid)
+    ts = arrow.utcnow()
+    tasks.update(dict(finished_ts=ts, progress=1.0, state=state, status=status))
+    app.db.session.flush()
+    app.db.session.commit()
 
 def wait_available_gpu(task_id):
 
