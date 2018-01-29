@@ -49,13 +49,13 @@ class Config(object):
     TRIGGER_TRAIN_MAX_HOURS = 24
     TRIGGER_TRAIN_MIN_HOURS = 3
 
-    TRIGGER_TEST_MIN_MINUTES = 15
+    TRIGGER_TEST_MIN_MINUTES = 20
 
     TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES = 1000
     TRIGGER_TRAIN_K_FOLDS_MAX_HOURS = 24
     TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 3
 
-    TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 15
+    TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 30
 
     MIN_ACCURACY_TO_DEPLOY = 0.98
     TRIGGER_DEPLOY_MIN_HOURS = 3
@@ -108,41 +108,37 @@ class Config(object):
     CELERY_TIMEZONE = 'UTC'
 
     CELERYBEAT_SCHEDULE = {
-        'print_echo_every_10_minutes': {
+        'print_echo_every_N_minutes': {
             'task': 'webtools.cron_tasks.print_echo',
-            'schedule': timedelta(minutes=10)
+            'schedule': timedelta(minutes=120)
         },
-        # 'reset_send_every_10_minutes': {
-        #     'task': 'webtools.cron_tasks.reset_send_samples',
-        #     'schedule': timedelta(minutes=10)
-        # },
-        'clean_waste_models_every_1_hour': {
+        'clean_waste_models_every_N_hours': {
             'task': 'webtools.cron_tasks.clean_waste_models',
             'schedule': timedelta(hours=1)
         },
-        'auto_train_check_every_5_minutes': {
+        'auto_train_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training',
-            'schedule': timedelta(minutes=20)
+            'schedule': timedelta(minutes=40)
         },
-        'auto_test_check_every_5_minutes': {
+        'auto_test_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing',
-            'schedule': timedelta(minutes=20)
+            'schedule': timedelta(minutes=10)
         },
-        'auto_train_k_folds_check_every_5_minutes': {
+        'auto_train_k_folds_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training_k_folds',
-            'schedule': timedelta(minutes=30)
+            'schedule': timedelta(minutes=60)
         },
-        'auto_test_k_folds_check_every_5_minutes': {
+        'auto_test_k_folds_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing_k_folds',
-            'schedule': timedelta(minutes=30)
+            'schedule': timedelta(minutes=10)
         },
         'annotation_statistics': {
             'task': 'webtools.reannotation.cron_tasks.annotation_statistics',
             'schedule': crontab(minute=0, hour=9)
         },
-        'auto_deploy_check_every_30_minutes': {
+        'auto_deploy_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_deploy',
-            'schedule': timedelta(minutes=30)
+            'schedule': timedelta(minutes=120)
         }
     }
 

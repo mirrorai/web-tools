@@ -1,5 +1,6 @@
 # encoding: utf-8
-from __future__ import unicode_literals
+# from __future__ import unicode_literals
+
 import glob
 import json
 import shutil
@@ -159,6 +160,9 @@ class AddImageDB(Command):
             app.db.session.add(imdb)
             app.db.session.flush()
 
+        def is_ascii(s):
+            return all(ord(c) < 128 for c in s)
+
         print('adding data to database...')
         accepted_samples = []
         skipped = 0
@@ -171,6 +175,11 @@ class AddImageDB(Command):
             idx += 1
             if idx % 1000 == 0:
                 print('processing [{}/{}]'.format(idx, len(samples)))
+
+            if not is_ascii(local_path):
+                skipped += 1
+                continue
+
             img_path = join(base_dir, local_path)
             if not isfile(img_path):
                 skipped += 1

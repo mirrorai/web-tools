@@ -133,7 +133,7 @@ def get_train_samples(k_fold=None):
                             GenderSample.is_annotated_gt),
                        and_(GenderUserAnnotation.id != None,
                             GenderUserAnnotation.is_hard == False,
-                            GenderUserAnnotation.is_bad == False))).all()
+                            GenderUserAnnotation.is_bad == False)))
     else:
         # (sample, is_male (picked from annotation or gt))
         res = app.db.session.query(GenderSample,
@@ -147,9 +147,16 @@ def get_train_samples(k_fold=None):
                             GenderSample.is_annotated_gt),
                        and_(GenderUserAnnotation.id != None,
                             GenderUserAnnotation.is_hard == False,
-                            GenderUserAnnotation.is_bad == False))).all()
+                            GenderUserAnnotation.is_bad == False)))
 
-    samples = [(s.GenderSample.image.filename(), 1 if s[1] else 0, s.GenderSample.id) for s in res]
+    samples = []
+    idx = 0
+    N = 10000
+    for s in res.yield_per(N):
+        idx += 1
+        if idx % N == 0:
+            print('+{} samples, loaded = {}'.format(N, idx))
+        samples.append((s.GenderSample.image.filename(), 1 if s[1] else 0, s.GenderSample.id))
 
     return samples
 

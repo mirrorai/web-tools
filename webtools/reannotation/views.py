@@ -242,64 +242,86 @@ def get_gender_stats():
 
     total = GenderSample.query.count()
 
-    total_checked = app.db.session.query(GenderSample). \
-        filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
-                    GenderSample.is_bad == False,
-                    GenderSample.is_checked==True)). \
-        outerjoin(GenderUserAnnotation). \
-        filter(or_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
-                   and_(GenderUserAnnotation.is_hard == False,
-                        GenderUserAnnotation.is_bad == False))).count()
+    # total_checked = app.db.session.query(GenderSample). \
+    #     filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+    #                 GenderSample.is_bad == False,
+    #                 GenderSample.is_checked==True)). \
+    #     outerjoin(GenderUserAnnotation). \
+    #     filter(or_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
+    #                and_(GenderUserAnnotation.is_hard == False,
+    #                     GenderUserAnnotation.is_bad == False))).count()
 
-    user_checked = GenderUserAnnotation.query.filter_by(user_id=current_user.id).count()
+    # user_checked = GenderUserAnnotation.query.filter_by(user_id=current_user.id).count()
 
-    total_annotated = app.db.session.query(GenderSample).outerjoin(GenderUserAnnotation).\
-                        filter(or_(GenderUserAnnotation.id != None, GenderSample.is_annotated_gt)).count()
+    # total_annotated = app.db.session.query(GenderSample).outerjoin(GenderUserAnnotation).\
+    #                     filter(or_(GenderUserAnnotation.id != None, GenderSample.is_annotated_gt)).count()
 
 
     new_min_error = app.config.get('NEW_SAMPLES_MIN_ERROR')
     min_error = app.config.get('SAMPLES_MIN_ERROR')
 
-    to_check = app.db.session.query(GenderSample).\
-        outerjoin(GenderUserAnnotation).\
-        filter(and_(GenderSample.is_checked==False,
-                    GenderSample.is_bad==False,
-                    GenderSample.is_hard==False,
-                    or_(GenderSample.send_timestamp == None,
-                        GenderSample.send_timestamp < expected_utc),
-                    and_(or_(GenderUserAnnotation.id == None,
-                             and_(GenderUserAnnotation.is_hard == False,
-                                  GenderUserAnnotation.is_bad == False))),
-                    or_(and_(GenderSample.error > min_error,
-                             or_(GenderSample.is_annotated_gt,
-                                 GenderUserAnnotation.id != None)),
-                        and_(GenderSample.error > new_min_error,
-                             GenderSample.is_annotated_gt==False,
-                             GenderUserAnnotation.id == None)))).count()
+    # to_check = app.db.session.query(GenderSample).\
+    #     outerjoin(GenderUserAnnotation).\
+    #     filter(and_(GenderSample.is_checked==False,
+    #                 GenderSample.is_bad==False,
+    #                 GenderSample.is_hard==False,
+    #                 or_(GenderSample.send_timestamp == None,
+    #                     GenderSample.send_timestamp < expected_utc),
+    #                 and_(or_(GenderUserAnnotation.id == None,
+    #                          and_(GenderUserAnnotation.is_hard == False,
+    #                               GenderUserAnnotation.is_bad == False))),
+    #                 or_(and_(GenderSample.error > min_error,
+    #                          or_(GenderSample.is_annotated_gt,
+    #                              GenderUserAnnotation.id != None)),
+    #                     and_(GenderSample.error > new_min_error,
+    #                          GenderSample.is_annotated_gt==False,
+    #                          GenderUserAnnotation.id == None)))).count()
 
-    new_samples = app.db.session.query(GenderSample). \
-        outerjoin(GenderUserAnnotation). \
-        filter(and_(GenderSample.is_checked == False,
-                    GenderSample.is_bad == False,
-                    GenderSample.is_hard == False,
-                    GenderUserAnnotation.id == None,
-                    or_(GenderSample.send_timestamp == None,
-                        GenderSample.send_timestamp < expected_utc),
-                    GenderSample.is_annotated_gt == False,
-                    GenderSample.error > new_min_error)).count()
+    # to_check = app.db.session.query(GenderSample).\
+    #     outerjoin(GenderUserAnnotation).\
+    #     filter(and_(GenderSample.is_checked==False,
+    #                 GenderSample.is_bad==False,
+    #                 GenderSample.is_hard==False,
+    #                 or_(GenderSample.send_timestamp == None,
+    #                     GenderSample.send_timestamp < expected_utc),
+    #                 and_(or_(GenderUserAnnotation.id == None,
+    #                          and_(GenderUserAnnotation.is_hard == False,
+    #                               GenderUserAnnotation.is_bad == False))),
+    #                 or_(and_(GenderSample.error > min_error,
+    #                          or_(GenderSample.is_annotated_gt,
+    #                              GenderUserAnnotation.id != None)),
+    #                     and_(GenderSample.error > new_min_error,
+    #                          GenderSample.is_annotated_gt==False,
+    #                          GenderUserAnnotation.id == None)))).count()
+
+    # new_samples = app.db.session.query(GenderSample). \
+    #     outerjoin(GenderUserAnnotation). \
+    #     filter(and_(GenderSample.is_checked == False,
+    #                 GenderSample.is_bad == False,
+    #                 GenderSample.is_hard == False,
+    #                 GenderUserAnnotation.id == None,
+    #                 or_(GenderSample.send_timestamp == None,
+    #                     GenderSample.send_timestamp < expected_utc),
+    #                 GenderSample.is_annotated_gt == False,
+    #                 GenderSample.error > new_min_error)).count()
 
     total_reannotated = app.db.session.query(GenderUserAnnotation).count()
-    user_reannotated = 0
+
+    # slow
+    # total_annotated = app.db.session.query(GenderSample).outerjoin(GenderUserAnnotation).\
+    #                     filter(or_(GenderUserAnnotation.id != None, GenderSample.is_annotated_gt)).count()
+
+    # slow
+    total_annotated = app.db.session.query(GenderSample).\
+                        filter(GenderSample.is_annotated_gt).count()
 
     stats = {}
     stats['total'] = total
-    stats['to_check'] = to_check
-    stats['new_samples'] = new_samples
-    stats['total_checked'] = total_checked
-    stats['user_checked'] = user_checked
+    stats['to_check'] = 0 # to_check
+    stats['new_samples'] = 0 # new_samples
+    stats['total_checked'] = 0 # total_checked
     stats['total_reannotated'] = total_reannotated
-    stats['user_reannotated'] = user_reannotated
-    stats['total_annotated'] = total_annotated
+    stats['total_annotated'] = total_annotated + total_reannotated # actually wrong value, but need only to check > 0
 
     return stats
 

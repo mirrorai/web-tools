@@ -12,7 +12,7 @@ var ReannotationManager =  new function() {
 		initElements();
 		initHandlers();
 
-		self.update_timer = setInterval(requestUpdate, 2000);
+		self.update_timer = setInterval(requestUpdate, 5000);
 	}
 
 	self.update = function(data) {
@@ -35,10 +35,10 @@ var ReannotationManager =  new function() {
                 if('stats' in data_for_problem) {
                     var stats = data_for_problem['stats'];
                     annotation.find('span.count-total').text(stats['total']);
-                    annotation.find('span.count-to-check').text(stats['to_check']);
-                    annotation.find('span.count-checked').text(stats['total_checked']);
+                    // annotation.find('span.count-to-check').text(stats['to_check']);
+                    // annotation.find('span.count-checked').text(stats['total_checked']);
                     annotation.find('span.count-reannotated').text(stats['total_reannotated']);
-                    annotation.find('span.count-new-samples').text(stats['new_samples']);
+                    // annotation.find('span.count-new-samples').text(stats['new_samples']);
                 }
                 if('metrics' in data_for_problem && data_for_problem['metrics'] !== null) {
                     metrics.show();
