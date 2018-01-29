@@ -24,37 +24,47 @@
               "first_name": "Admin",
               "last_name": "",
               "email": "admin@mirror-ai.com",
-              "password": "mirroraidev",
+              "password": "mirroraiadmin",
               "roles": [
                 "admin", "moderator", "annotator"
               ],
               "active": true
             },
             {
-              "first_name": "Moderator 1",
-              "last_name": "",
-              "email": "moderator@mirror-ai.com",
-              "password": "moderator1",
+              "first_name": "Moderator",
+              "last_name": "Moderator",
+              "email": "moderator1@mirror-ai.com",
+              "password": "f2wv6suz",
               "roles": [
                 "moderator", "annotator"
               ],
               "active": true
             },
             {
-              "first_name": "Annotator 1",
-              "last_name": "",
+              "first_name": "Moderator",
+              "last_name": "Moderator",
+              "email": "moderator2@mirror-ai.com",
+              "password": "zjw3vmbx",
+              "roles": [
+                "moderator", "annotator"
+              ],
+              "active": true
+            },
+            {
+              "first_name": "Annotator",
+              "last_name": "Annotator",
               "email": "annotator1@mirror-ai.com",
-              "password": "annotator1",
+              "password": "t4abzufq",
               "roles": [
                 "annotator"
               ],
               "active": true
             },
             {
-              "first_name": "Annotator 2",
-              "last_name": "",
+              "first_name": "Annotator",
+              "last_name": "Annotator",
               "email": "annotator2@mirror-ai.com",
-              "password": "annotator2",
+              "password": "nvrx2p8c",
               "roles": [
                 "annotator"
               ],
