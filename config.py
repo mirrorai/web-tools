@@ -83,7 +83,7 @@ class Config(object):
     # User management
     SECURITY_EMAIL_SENDER = MAIL_NO_REPLY_SENDER
     SECURITY_CONFIRMABLE = True  # Confirm registrations
-    SECURITY_REGISTERABLE = True  # Allow registrations
+    SECURITY_REGISTERABLE = False  # Allow registrations
     SECURITY_RECOVERABLE = False  # Allow password recovery
     SECURITY_TRACKABLE = True  # Track login dates and ips
     SECURITY_CHANGEABLE = True  # Allow password change
@@ -191,7 +191,7 @@ class StagingConfig(Config):
 class ProductionConfig(Config):
     # Environment
     PRODUCTION = True
-    SERVER_NAME = 'train4.mirror-ai.net:8000'
+    SERVER_NAME = 'train4.mirror-ai.net'
 
     # Logging
     LOG_LEVEL = logging.INFO

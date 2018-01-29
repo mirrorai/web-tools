@@ -117,6 +117,7 @@ def get_learning_tasks(problem_name):
 
         if problem_type not in resp_map:
             problem_type_item = {}
+            problem_type_item['is_finished'] = item['finished_ts'] != None
 
             if admin_permission.can():
                 problem_type_item['start_url'] = get_trigger_url_for(problem_name, problem_type)
@@ -127,7 +128,6 @@ def get_learning_tasks(problem_name):
 
             problem_type_item['label'] = labels_map[problem_type]
             problem_type_item['order'] = order_map[problem_type]
-            problem_type_item['is_finished'] = item['finished_ts'] != None
             problem_type_item['tasks'] = []
             resp_map[problem_type] = problem_type_item
 
@@ -136,7 +136,7 @@ def get_learning_tasks(problem_name):
 
     for problem_type in resp_map:
         if len(resp_map[problem_type]['tasks']) > 1:
-            task_ids = ','.join([item['task_id'] for item in resp_map[problem_type]['tasks']])
+            task_ids = ','.join([item['task_id'] for item in resp_map[problem_type]['tasks'] if item['finished_ts'] == None])
             if admin_permission.can():
                 resp_map[problem_type]['stop_url'] = get_stop_url_for(problem_type, task_ids)
             else:
@@ -957,6 +957,9 @@ def stop_test_k_folds(task_ids_str):
     admin_permission.test(403)
     task_ids = task_ids_str.split(',')
     for task_id in task_ids:
+        task = LearningTask.query.filter_by(task_id=task_id).first()
+        if task and task.finished_ts != None:
+            continue
         celery.task.control.revoke(task_id, terminate=True, queue='learning')
         clear_data_for_test_k_folds_task(task_id, 'REVOKED', 'Stopped')
 

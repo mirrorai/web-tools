@@ -1,0 +1,19 @@
+{
+    "commands": [
+        {
+          "name": "add_users",
+          "users": [
+            {
+              "first_name": "Demo",
+              "last_name": "Demo",
+              "email": "demo@mirror-ai.net",
+              "password": "demodemo",
+              "roles": [
+                "moderator", "annotator"
+              ],
+              "active": true
+            }
+          ]
+        }
+    ]
+}
