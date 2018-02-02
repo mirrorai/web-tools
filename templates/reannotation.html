@@ -39,9 +39,9 @@
              href="{{problem['annotation_url'] if problem['enabled'] else '#'}}"
              class="list-group-item annotation-subsection-item">
 
-            <h4 class="list-group-item-heading lead">Annotation</h4>
+            <h4 class="list-group-item-heading lead">{{gettext('Annotation')}}</h4>
             <p class="lead list-group-item-text">
-              total samples:
+              {{gettext('total samples')}}:
               <span class="count-total label label-info">{{ problem['stats']['total'] if 'stats' in problem else 0 }}</span>
               <!--, new samples:-->
               <!--<span class="count-new-samples label label-info">{{ problem['stats']['new_samples'] if 'stats' in problem else 0 }}</span>-->
@@ -49,8 +49,14 @@
               <!--<span class="count-to-check label label-info">{{ problem['stats']['to_check'] if 'stats' in problem else 0 }}</span>-->
               <!--, checked:-->
               <!--<span class="count-checked label label-success">{{ problem['stats']['total_checked'] if 'stats' in problem else 0 }}</span>-->
-              , annotated:
-              <span class="count-reannotated label label-success">{{ problem['stats']['total_reannotated'] if 'stats' in problem else 0 }}</span>
+
+              {% if current_user.has_role('moderator') %}
+                , {{gettext('total annotated')}}:
+                <span class="count-reannotated label label-success">{{ problem['stats']['total_reannotated'] if 'stats' in problem else 0 }}</span>
+              {% else %}
+                , {{gettext('annotated')}}:
+                <span class="count-user-annotated label label-success">{{ problem['stats']['user_annotated'] if 'stats' in problem else 0 }}</span>
+              {% endif %}
             </p>
           </a>
 
@@ -58,27 +64,38 @@
              href="{{problem['metrics']['metrics_url'] if 'metrics' in problem else '#'}}"
              style="{{'' if 'metrics' in problem else 'display:none;'}}"
              class="list-group-item annotation-subsection-item">
-            <h4 class="list-group-item-heading lead">Metrics</h4>
+            <h4 class="list-group-item-heading lead">{{gettext('Metrics')}}</h4>
             {% set show_acc =  'metrics' in problem and problem['metrics']['tested']%}
             <p class="metrics-results lead list-group-item-text"
                style="{{'' if show_acc else 'display:none;'}}">
-              accuracy:
+              {{gettext('accuracy')}}:
               <span class="accuracy label label-info">
                 {{'%0.3f' % problem['metrics']['accuracy']|float if show_acc else '0.0' }}</span>
-              , error reduction:
+              , {{gettext('error reduction')}}:
               <span class="error-reduction label label-success">
                 {{ 'x%0.3f' % problem['metrics']['error_reduction']|float if show_acc else 'x1.0' }}
               </span>
             </p>
             <p class="metrics-warning lead list-group-item-text"
                style="{{'' if not show_acc else 'display:none;'}}">
-              last model have not tested yet
+              {{gettext('last model have not tested yet')}}
             </p>
           </a>
+
+          <a id="{{problem['name_id']}}_user_control"
+             href="{{problem['user_control_url'] if 'user_control_url' in problem else '#'}}"
+             style="{{'' if 'user_control_url' in problem else 'display:none;'}}"
+             class="list-group-item annotation-subsection-item">
+            <h4 class="list-group-item-heading lead">{{gettext('User control')}}</h4>
+            <p class="lead list-group-item-text">
+              {{gettext('annotation info for each user')}}
+            </p>
+          </a>
+
           <div id="{{problem['name_id']}}_manager"
                style="{{'' if 'tasks' in problem else 'display:none;'}}"
                class="list-group-item annotation-subsection-item">
-            <h4 class="list-group-item-heading lead">Manage</h4>
+            <h4 class="list-group-item-heading lead">{{gettext('Manage')}}</h4>
             <p class="lead list-group-item-text" style="margin-top: 15px;">
               {% if 'tasks' in problem %}
                 {% for task in problem['tasks'] %}
@@ -136,7 +153,7 @@
 <script type="text/javascript">
   $(document).ready(function() {
     var json_data = JSON.parse('{{ problems|tojson }}');
-    var update_url = '{{ update_url }}';
+    var update_url = '{{ update_url if current_user.has_role('admin') else '#' }}';
     ReannotationManager.init(update_url);
     ReannotationManager.update(json_data);
   });

@@ -59,7 +59,7 @@
                     <span class="icon-bar"></span>
                 </button>
                 <a class="navbar-brand" href="{{ url_for('index') }}">
-                    Web Annotation Tools
+                    {{gettext('Web Annotation Tools')}}
                 </a>
             </div>
             <div class="collapse navbar-collapse" id="navbar">
@@ -87,18 +87,18 @@
                         <li{% if active_page == 'my_profile' %} class="active"{% endif %}>
                             <a href="{{ url_for('user_my_profile') }}">
                                 {{ icon('user') }}
-                                Signed in as <strong>{{ current_user.first_name }}</strong>
+                                {{gettext('Signed in as')}} <strong>{{ current_user.first_name }}</strong>
                             </a>
                         </li>
                         <li>
                             <a href="{{ url_for('security.logout') }}">
-                                {{ icon('log-out') }} Logout
+                                {{ icon('log-out') }} {{gettext('Logout')}}
                             </a>
                         </li>
                     {% else %}
                         <li>
                             <a href="{{ url_for('security.login') }}">
-                                {{ icon('log-in') }} Sign in
+                                {{ icon('log-in') }} {{gettext('Sign in')}}
                             </a>
                         </li>
                     {% endif %}

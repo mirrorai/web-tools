@@ -59,24 +59,37 @@ class GetSamples(Command):
             dest='output_file',
             help='Output file path'
         ),
+        Option(
+            '--only-annotated', '-a',
+            dest='ann_only',
+            help='Only user annotated samples',
+            default=0
+        ),
     )
 
     def __init__(self, func=None):
         super(GetSamples, self).__init__(func=func)
 
-    def run(self, output_file):
+    def run(self, output_file, ann_only=0):
 
-        res = app.db.session.query(GenderSample,
-                                   case([(GenderUserAnnotation.id == None, GenderSample.is_hard)],
-                                        else_=GenderUserAnnotation.is_hard),
-                                   case([(GenderUserAnnotation.id == None, GenderSample.is_bad)],
-                                        else_=GenderUserAnnotation.is_bad),
-                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
-                                        else_=GenderUserAnnotation.is_male)). \
-            outerjoin(GenderUserAnnotation). \
-            filter(or_(and_(GenderUserAnnotation.id == None,
-                            GenderSample.is_annotated_gt),
-                       and_(GenderUserAnnotation.id != None))).all()
+        if ann_only:
+            res = app.db.session.query(GenderSample,
+                                       GenderUserAnnotation.is_hard,
+                                       GenderUserAnnotation.is_bad,
+                                       GenderUserAnnotation.is_male). \
+                join(GenderUserAnnotation).all()
+        else:
+            res = app.db.session.query(GenderSample,
+                                       case([(GenderUserAnnotation.id == None, GenderSample.is_hard)],
+                                            else_=GenderUserAnnotation.is_hard),
+                                       case([(GenderUserAnnotation.id == None, GenderSample.is_bad)],
+                                            else_=GenderUserAnnotation.is_bad),
+                                       case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                            else_=GenderUserAnnotation.is_male)). \
+                outerjoin(GenderUserAnnotation). \
+                filter(or_(and_(GenderUserAnnotation.id == None,
+                                GenderSample.is_annotated_gt),
+                           and_(GenderUserAnnotation.id != None))).all()
 
         print('number of samples: {}'.format(len(res)))
 

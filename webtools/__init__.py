@@ -117,6 +117,10 @@ def make_celery(application):
 celery = make_celery(app)
 app.celery = celery
 
+from flask.ext.babel import Babel
+babel = Babel(app)
+app.babel = babel
+
 from flask.json import JSONEncoder
 import arrow
 

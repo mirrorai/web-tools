@@ -38,8 +38,8 @@ def annotation_statistics():
         msg += ' No annotated samples :waiting:'.format(total_annotated_last)
     else:
         msg += ' Total samples annotated: {}\n'.format(total_annotated_last)
-        msg += ' For training: {}\n'.format(test_annotated_last)
-        msg += ' For testing: {}'.format(train_annotated_last)
+        msg += ' For training: {}\n'.format(train_annotated_last)
+        msg += ' For testing: {}'.format(test_annotated_last)
 
     send_slack_message(msg)
 

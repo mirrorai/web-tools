@@ -2,7 +2,7 @@
 
 {% block title %}{{ super() }}Login{% endblock %}
 
-{% block panel_title %}Sign in{% endblock %}
+{% block panel_title %}{{gettext('Sign in')}}{% endblock %}
 
 {% from '_forms.html' import render_errors %}
 
@@ -14,43 +14,43 @@
 
         <div style="margin-bottom: 15px" class="input-group">
             <span class="input-group-addon"
-                  data-toggle="tooltip" data-placement="left" data-container="body" title="Email">
+                  data-toggle="tooltip" data-placement="left" data-container="body" title="{{gettext('Email')}}">
                 {{ icon('envelope') }}
             </span>
             <input required type="text" class="form-control" name="email" value=""
-                   placeholder="Email">
+                   placeholder="{{gettext('Email')}}">
         </div>
         {{ render_errors(login_user_form.email) }}
 
         <div style="margin-bottom: 15px" class="input-group">
             <span class="input-group-addon"
-                  data-toggle="tooltip" data-placement="left" data-container="body" title="Password">
+                  data-toggle="tooltip" data-placement="left" data-container="body" title="{{gettext('Password')}}">
                 {{ icon('lock') }}
             </span>
             <input required type="password" class="form-control" name="password"
-                   placeholder="Password">
+                   placeholder="{{gettext('Password')}}">
         </div>
         {{ render_errors(login_user_form.password) }}
 
         <div class="input-group">
             <div class="checkbox">
                 <label>
-                    <input type="checkbox" name="remember" value="1"> Remember me
+                    <input type="checkbox" name="remember" value="1"> {{gettext('Remember me')}}
                 </label>
             </div>
         </div>
 
         <div style="margin-top:10px" class="form-group">
             <div class="col-lg-12 controls">
-                <input class="btn btn-primary btn-lg btn-block" name="submit" type="submit" value="Login">
+                <input class="btn btn-primary btn-lg btn-block" name="submit" type="submit" value="{{gettext('Login')}}">
             </div>
         </div>
 
         <div class="form-group">
             <div class="col-lg-12 control">
                 <div style="border-top: 1px solid#888; padding-top:15px; font-size:85%">
-                    Don't have an account?
-                    <a href="#">Sign Up Here</a>
+                    {{gettext('Don\'t have an account?')}}
+                    <a href="#">{{gettext('Sign Up Here')}}</a>
                 </div>
             </div>
         </div>

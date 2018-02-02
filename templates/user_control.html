@@ -25,21 +25,17 @@
     <thead>
       <tr>
         <th>#</th>
-        <th>{{gettext('Train finished time')}}</th>
-        <th>{{gettext('Number of training samples')}}</th>
-        {% for metric_name in metrics['metrics_names'] %}
-          <th>{{metric_name}}</th>
-        {% endfor %}
+        <th>{{gettext('User')}}</th>
+        <th>{{gettext('Annotation accuracy')}}</th>
+        <th>{{gettext('Annotated count')}}</th>
       </tr>
     </thead>
-    {% for m in metrics['data'] %}
+    {% for u in user_control['data'] %}
       <tr>
-        <td class="">{{m['model_id']}}</td>
-        <td class="">{{m['finished_ts']}}</td>
-        <td class="">{{m['num_samples']}}</td>
-        {% for val in m['metrics_values'] %}
-          <td>{{val}}</td>
-        {% endfor %}
+        <td class="">{{u['user_id']}}</td>
+        <td class="">{{u['user_email']}}</td>
+        <td class="">{{'%0.1f' % u['ann_accuracy']|float}}%</td>
+        <td class="">{{u['ann_count']}}</td>
       </tr>
     {% endfor%}
   </table>

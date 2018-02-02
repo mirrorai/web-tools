@@ -12,7 +12,9 @@ var ReannotationManager =  new function() {
 		initElements();
 		initHandlers();
 
-		self.update_timer = setInterval(requestUpdate, 5000);
+        if(update_url !== '#') {
+            self.update_timer = setInterval(requestUpdate, 5000);
+        }
 	}
 
 	self.update = function(data) {
@@ -37,7 +39,10 @@ var ReannotationManager =  new function() {
                     annotation.find('span.count-total').text(stats['total']);
                     // annotation.find('span.count-to-check').text(stats['to_check']);
                     // annotation.find('span.count-checked').text(stats['total_checked']);
-                    annotation.find('span.count-reannotated').text(stats['total_reannotated']);
+                    if('total_reannotated' in stats) {
+                        annotation.find('span.count-reannotated').text(stats['total_reannotated']);
+                    }
+                    annotation.find('span.count-user-annotated').text(stats['user_annotated']);
                     // annotation.find('span.count-new-samples').text(stats['new_samples']);
                 }
                 if('metrics' in data_for_problem && data_for_problem['metrics'] !== null) {

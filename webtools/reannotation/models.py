@@ -217,3 +217,51 @@ class GPUStatus(db.Model):
     gpu_id = db.SDColumn(db.Integer, unique=True)
     task_id = db.SDColumn(db.String(64))
     use = db.SDColumn(db.Boolean, default=False)
+
+class GenderUserLog(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+
+    sample_id = db.SDColumn(
+        db.Integer,
+        db.ForeignKey('gender_sample.id', onupdate='CASCADE', ondelete='CASCADE')
+    )
+    sample = db.relationship(
+        GenderSample,
+        uselist=False,
+        cascade='all, delete-orphan',
+        single_parent=True
+    )
+
+    user_id = db.SDColumn(
+        db.Integer,
+        db.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE')
+    )
+    user = db.relationship(
+        User,
+        uselist=False,
+        cascade='all, delete-orphan',
+        single_parent=True
+    )
+    mark_timestamp = db.SDColumn(ArrowType)
+
+class GenderUserAnnotationInfo(db.Model):
+    id = db.SDColumn(db.Integer, primary_key=True, autoincrement=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('id', 'user_id'),
+    )
+
+    user_id = db.SDColumn(
+        db.Integer,
+        db.ForeignKey('user.id', onupdate='CASCADE', ondelete='CASCADE')
+    )
+    user = db.relationship(
+        User,
+        uselist=False,
+        cascade='all, delete-orphan',
+        single_parent=True
+    )
+
+    annotated_num = db.SDColumn(db.Integer, default=0)
+    control_num = db.SDColumn(db.Integer, default=0)
+    correct_num = db.SDColumn(db.Integer, default=0)

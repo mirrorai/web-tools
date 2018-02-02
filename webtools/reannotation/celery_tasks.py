@@ -585,7 +585,6 @@ def clear_data_for_train_k_folds_task(uuid, state, status):
 
     release_gpu(uuid)
 
-
 def remove_old_k_folds_models(problem_name, except_id, k_fold):
     a = LearnedModel.query.filter(and_(LearnedModel.k_fold == k_fold,
                                        LearnedModel.id != except_id,

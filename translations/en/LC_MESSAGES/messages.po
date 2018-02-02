@@ -1,0 +1,321 @@
+# English translations for PROJECT.
+# Copyright (C) 2018 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2018-02-02 15:15+0000\n"
+"PO-Revision-Date: 2018-02-02 13:50+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: templates/base.html:62
+msgid "Web Annotation Tools"
+msgstr ""
+
+#: templates/base.html:90
+msgid "Signed in as"
+msgstr ""
+
+#: templates/base.html:95
+msgid "Logout"
+msgstr ""
+
+#: templates/base.html:101 templates/security/login_user.html:5
+msgid "Sign in"
+msgstr ""
+
+#: templates/metrics.html:28
+msgid "Train finished time"
+msgstr ""
+
+#: templates/metrics.html:29
+msgid "Number of training samples"
+msgstr ""
+
+#: templates/reannotation.html:42
+msgid "Annotation"
+msgstr ""
+
+#: templates/reannotation.html:44
+msgid "total samples"
+msgstr ""
+
+#: templates/reannotation.html:54
+msgid "total annotated"
+msgstr ""
+
+#: templates/reannotation.html:57
+msgid "annotated"
+msgstr ""
+
+#: templates/reannotation.html:67
+msgid "Metrics"
+msgstr ""
+
+#: templates/reannotation.html:71
+msgid "accuracy"
+msgstr ""
+
+#: templates/reannotation.html:74
+msgid "error reduction"
+msgstr ""
+
+#: templates/reannotation.html:81
+msgid "last model have not tested yet"
+msgstr ""
+
+#: templates/reannotation.html:89
+msgid "User control"
+msgstr ""
+
+#: templates/reannotation.html:91
+msgid "annotation info for each user"
+msgstr ""
+
+#: templates/reannotation.html:98
+msgid "Manage"
+msgstr ""
+
+#: templates/reannotation_gender.html:25
+msgid "No images to annotate"
+msgstr ""
+
+#: templates/reannotation_gender.html:27
+msgid "Statistics"
+msgstr ""
+
+#: templates/reannotation_gender.html:32
+msgid "Find all images with"
+msgstr ""
+
+#: templates/reannotation_gender.html:34
+msgid "woman_"
+msgstr "woman"
+
+#: templates/reannotation_gender.html:34
+msgid "man_"
+msgstr "man"
+
+#: templates/reannotation_gender.html:45
+msgid "Next"
+msgstr ""
+
+#: templates/reannotation_gender.html:57
+msgid "woman"
+msgstr ""
+
+#: templates/reannotation_gender.html:57
+msgid "man"
+msgstr ""
+
+#: templates/reannotation_gender.html:58
+msgid "hard"
+msgstr ""
+
+#: templates/reannotation_gender.html:59
+msgid "bad"
+msgstr ""
+
+#: templates/reannotation_gender.html:77
+msgid "Annotation instructions"
+msgstr ""
+
+#: templates/reannotation_gender.html:80
+msgid "Task"
+msgstr ""
+
+#: templates/reannotation_gender.html:81
+msgid ""
+"The task is to find and select pictures of <strong>men</strong> or "
+"<strong>women</strong> as indicated in the header"
+msgstr ""
+
+#: templates/reannotation_gender.html:83
+msgid "Click on image to select it"
+msgstr ""
+
+#: templates/reannotation_gender.html:84
+msgid ""
+"You can also select image by clicking on the button "
+"(<strong>woman/man</strong>)"
+msgstr ""
+
+#: templates/reannotation_gender.html:85
+msgid ""
+"Click on <strong>bad</strong> button if image does not contain face or "
+"image is not properly cropped"
+msgstr ""
+
+#: templates/reannotation_gender.html:86
+msgid ""
+"Click on <strong>hard</strong> button if it's difficult to say whether "
+"man or woman on the image"
+msgstr ""
+
+#: templates/reannotation_gender.html:87
+msgid ""
+"If, despite the poor photo quality, lighting, or improper cropping, you "
+"can determine the gender of the person in the photo, be sure to specify "
+"it (<strong>do not choose a complex / bad example</strong>)"
+msgstr ""
+
+#: templates/reannotation_gender.html:88
+msgid ""
+"<span class=\"label label-info\">Blue</span> color stands for man, <span "
+"class=\"label label-warning\">yellow</span> color stands for woman"
+msgstr ""
+
+#: templates/reannotation_gender.html:90
+msgid "Examples"
+msgstr ""
+
+#: templates/reannotation_gender.html:91
+msgid "Man examples"
+msgstr ""
+
+#: templates/reannotation_gender.html:107
+msgid "Woman examples"
+msgstr ""
+
+#: templates/reannotation_gender.html:123
+msgid "Hard examples"
+msgstr ""
+
+#: templates/reannotation_gender.html:130
+msgid "Bad examples"
+msgstr ""
+
+#: templates/reannotation_gender.html:145
+msgid "Close"
+msgstr ""
+
+#: templates/user.html:17
+msgid "First name"
+msgstr ""
+
+#: templates/user.html:20
+msgid "Last name"
+msgstr ""
+
+#: templates/security/login_user.html:17 templates/security/login_user.html:21
+#: templates/user.html:23
+msgid "Email"
+msgstr ""
+
+#: templates/user.html:26
+msgid "Last login"
+msgstr ""
+
+#: templates/user.html:31
+msgid "Never before"
+msgstr ""
+
+#: templates/user.html:39 templates/user.html:50
+msgid "Change password"
+msgstr ""
+
+#: templates/user_control.html:28
+msgid "User"
+msgstr ""
+
+#: templates/user_control.html:29
+msgid "Annotation accuracy"
+msgstr ""
+
+#: templates/user_control.html:30
+msgid "Annotated count"
+msgstr ""
+
+#: templates/security/login_user.html:27 templates/security/login_user.html:31
+msgid "Password"
+msgstr ""
+
+#: templates/security/login_user.html:38
+msgid "Remember me"
+msgstr ""
+
+#: templates/security/login_user.html:45
+msgid "Login"
+msgstr ""
+
+#: templates/security/login_user.html:52
+msgid "Don't have an account?"
+msgstr ""
+
+#: templates/security/login_user.html:53
+msgid "Sign Up Here"
+msgstr ""
+
+#: webtools/forms.py:106
+msgid "Time interval can't be zero"
+msgstr ""
+
+#: webtools/reannotation/views.py:228 webtools/reannotation/views.py:238
+msgid "Gender"
+msgstr ""
+
+#: webtools/reannotation/views.py:363
+msgid "Accuracy"
+msgstr ""
+
+#: webtools/reannotation/views.py:585 webtools/reannotation/views.py:682
+msgid "uncertainty"
+msgstr ""
+
+#: webtools/reannotation/views.py:641 webtools/reannotation/views.py:682
+msgid "error"
+msgstr ""
+
+#~ msgid "No images to annotate"
+#~ msgstr ""
+
+#~ msgid "Statistics"
+#~ msgstr ""
+
+#~ msgid "Find all images with"
+#~ msgstr ""
+
+#~ msgid "woman_"
+#~ msgstr ""
+
+#~ msgid "man_"
+#~ msgstr ""
+
+#~ msgid "Next"
+#~ msgstr ""
+
+#~ msgid "woman"
+#~ msgstr ""
+
+#~ msgid "man"
+#~ msgstr ""
+
+#~ msgid "hard"
+#~ msgstr ""
+
+#~ msgid "bad"
+#~ msgstr ""
+
+#~ msgid "Annotation instructions"
+#~ msgstr ""
+
+#~ msgid "Task"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "The task is to find and select "
+#~ "pictures of <strong>men</strong> or "
+#~ "<strong>women</strong> as indicated in the "
+#~ "header"
+#~ msgstr ""
+

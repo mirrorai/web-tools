@@ -18,7 +18,7 @@ set -e
 # https://habrahabr.ru/post/105954/
 
 TIME_NOW=$(date +"%Y_%m_%d_%H_%M_%S")
-FOLDER=/home/local/database/backup
+FOLDER=/home/ubuntu/database/backup
 mkdir -p ${FOLDER}
 DB_DUMP_PATH=${FOLDER}/backup_${TIME_NOW}.sql
 mysqldump -u root -p${MYSQL_PASS} ${MYSQL_DBNAME} > ${DB_DUMP_PATH}

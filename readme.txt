@@ -28,18 +28,6 @@ export LC_CTYPE="en_US.UTF-8"
 
 # db populate
 1. python manage.py db_command -f data/db_populate_users.json
-2. python manage.py db_command -f data/db_populate_hyper_categories.json
-2. python manage.py db_command -f data/db_populate_categories.json
-3. python manage.py db_command -f data/db_populate_cell_types.json
-4. python manage.py db_command -f data/db_populate_images_0.json
-5. python manage.py db_command -f data/db_populate_images_1.json
-6. python manage.py db_command -f data/db_populate_images_2.json
-7. python manage.py db_command -f data/db_add_detector.json
-8. python manage.py db_command -f data/db_add_detections.json
-
-# prepare for remarking
-1. add detections (step 8 in db populate)
-2. python manage.py check_detections
 
 # clean waste images
 python manage.py clean_waste_images
@@ -48,10 +36,7 @@ python manage.py clean_waste_images
 python manage.py clean_cache
 
 # get current marking
-python manage.py get_marking -o data/marking.json
-
-# get class labels
-python manage.py get_class_labels -o data/class_labels.json
+python manage.py get_samples -o data/marking.json
 
 # update locale
 export LC_ALL="en_US.UTF-8"
@@ -125,6 +110,18 @@ brew install rabbitmq
 # celery workers
 ps aux|grep 'celery worker'
 pkill -f "celery worker"
+
+# translations
+
+# 1. extract
+pybabel extract -F babel.cfg -o messages.pot webtools
+
+# 2. init or update
+pybabel init -i messages.pot -d translations -l ru
+pybabel update -i messages.pot -d translations
+
+# 3. compile
+pybabel compile -d translations
 
 # autoreload
 celery webtools.celery worker -B --concurrency 1 --loglevel=info \

@@ -3,13 +3,23 @@
         {
           "name": "add_users",
           "users": [
+//            {
+//              "first_name": "Demo",
+//              "last_name": "Demo",
+//              "email": "demo@mirror-ai.net",
+//              "password": "demodemo",
+//              "roles": [
+//                "moderator", "annotator"
+//              ],
+//              "active": true
+//            },
             {
-              "first_name": "Demo",
-              "last_name": "Demo",
-              "email": "demo@mirror-ai.net",
-              "password": "demodemo",
+              "first_name": "Admin",
+              "last_name": "",
+              "email": "admin@mirror-ai.com",
+              "password": "mirroraiadmin",
               "roles": [
-                "moderator", "annotator"
+                "admin", "moderator", "annotator"
               ],
               "active": true
             }

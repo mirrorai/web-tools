@@ -22,16 +22,16 @@
 <main role="main" class="container">
   {% if ctx['is_empty'] %}
     <div class="starter-template" style="padding: 0px 15px; text-align: center;">
-      <h1>No images to annotate.</h1>
+      <h1>{{gettext('No images to annotate')}}.</h1>
       <p class="lead">
-        Statistics: {{ctx['stats']['total']}} total images, {{ctx['stats']['total_reannotated']}} images annotated.
+        {{gettext('Statistics')}}: {{ctx['stats']['total']}} gettext('total images'), {{ctx['stats']['total_reannotated']}} gettext('images annotated').
         <br> <a href="/reannotation">Go back</a> to select task.
       </p>
     </div>
   {% else %}
-    <h2 style="margin-top: 0px;">Find all images with
+    <h2 style="margin-top: 0px;">{{gettext('Find all images with')}}
       <span class="text-info">
-      {{'woman' if ctx['is_male'] else 'man'}}
+      {{gettext('woman_') if ctx['is_male'] else gettext('man_')}}
       </span>
       <small>
         <!--<button type="button" class="btn btn-info btn-lg" data-toggle="modal" data-target="#myModal">Open Modal</button>-->
@@ -42,7 +42,7 @@
         {{ form.csrf_token }}
         {{ form.is_male() }}
         {{ form.gender_data() }}
-        <button type="button" style="margin-left: 10px; min-width: 100px;" class="btn btn-success">Next</button>
+        <button type="button" style="margin-left: 10px; min-width: 100px;" class="btn btn-success">{{gettext('Next')}}</button>
       </form>
     </h2>
     {% for sample in ctx['samples'] %}
@@ -54,9 +54,9 @@
           <img src="{{ sample['image'] }}" role="button" class="img-card">
           <div class="caption">
             <div class="btn-group" role="group">
-              <button type="button" style="width: 63px;" class="btn btn-default btn-gender">{{'woman' if ctx['is_male'] else 'man'}}</button>
-              <button type="button" style="width: 49px;" class="btn btn-default btn-gender-hard">hard</button>
-              <button type="button" style="width: 39px;" class="btn btn-default btn-gender-bad">bad</button>
+              <button type="button" style="width: 55px;" class="btn btn-default btn-gender">{{gettext('woman') if ctx['is_male'] else gettext('man')}}</button>
+              <button type="button" style="width: 50px;" class="btn btn-default btn-gender-hard">{{gettext('hard')}}</button>
+              <button type="button" style="width: 46px;" class="btn btn-default btn-gender-bad">{{gettext('bad')}}</button>
             </div>
           </div>
           <div class="gender-data-container" data-sample-id="{{sample['id']}}"></div>
@@ -74,23 +74,21 @@
     <div class="modal-content">
       <div class="modal-header">
         <button type="button" class="close" data-dismiss="modal">&times;</button>
-        <h4 class="modal-title">Annotation instructions</h4>
+        <h4 class="modal-title">{{gettext('Annotation instructions')}}</h4>
       </div>
       <div class="modal-body">
-        <h4>Task</h4>
-        <p>The task is to find and select pictures of <strong>men</strong> or <strong>women</strong> as indicated in the header</p>
+        <h4>{{gettext('Task')}}</h4>
+        <p>{{gettext('The task is to find and select pictures of <strong>men</strong> or <strong>women</strong> as indicated in the header')}}.</p>
         <ul>
-          <li>Click on image to select it</li>
-          <li>You can also select image by clicking on the button (<strong>woman/man</strong>)</li>
-          <li>Click on <strong>bad</strong> button if image does not contain face or image is not properly cropped</li>
-          <li>Click on <strong>hard</strong> button if it's difficult to say whether man or woman on the image</li>
-          <li><span class="label label-info">Blue</span> color stands for man, <span class="label label-warning">yellow</span> color stands for woman</li>
-          <li>If the image has poor lighting but face is recognizable, try to determine the gender</li>
-          <li>Select <strong>bad</strong> (or <strong>hard</strong>) if it is <em><strong>really</strong></em>
-          <strong>bad</strong> (or <strong>hard</strong>)</li>
+          <li>{{gettext('Click on image to select it')}}</li>
+          <li>{{gettext('You can also select image by clicking on the button (<strong>woman/man</strong>)')}}</li>
+          <li>{{gettext('Click on <strong>bad</strong> button if image does not contain face or image is not properly cropped')}}</li>
+          <li>{{gettext('Click on <strong>hard</strong> button if it\'s difficult to say whether man or woman on the image')}}</li>
+          <li>{{gettext('If, despite the poor photo quality, lighting, or improper cropping, you can determine the gender of the person in the photo, be sure to specify it (<strong>do not choose a complex / bad example</strong>)')}}</li>
+          <li>{{gettext('<span class="label label-info">Blue</span> color stands for man, <span class="label label-warning">yellow</span> color stands for woman')}}</li>
         </ul>
-        <h4>Examples</h4>
-        <p>Man</p>
+        <h4>{{gettext('Examples')}}</h4>
+        <p>{{gettext('Man examples')}}</p>
         <div class="sample-card sample-card-man">
           <img src="{{url_for('static', filename='images/gender/man/4232.jpeg')}}" class="img-card">
         </div>
@@ -106,7 +104,7 @@
         <div class="sample-card sample-card-man">
           <img src="{{url_for('static', filename='images/gender/man/5461.jpeg')}}" class="img-card">
         </div>
-        <p>Woman</p>
+        <p>{{gettext('Woman examples')}}</p>
         <div class="sample-card sample-card-woman">
           <img src="{{url_for('static', filename='images/gender/woman/4486.jpeg')}}" class="img-card">
         </div>
@@ -122,14 +120,14 @@
         <div class="sample-card sample-card-woman">
           <img src="{{url_for('static', filename='images/gender/woman/5542.jpeg')}}" class="img-card">
         </div>
-        <p>Hard</p>
+        <p>{{gettext('Hard examples')}}</p>
         <div class="sample-card sample-card-bad">
           <img src="{{url_for('static', filename='images/gender/hard/2061.jpeg')}}" class="img-card">
         </div>
         <div class="sample-card sample-card-bad">
           <img src="{{url_for('static', filename='images/gender/hard/5626.jpeg')}}" class="img-card">
         </div>
-        <p>Bad</p>
+        <p>{{gettext('Bad examples')}}</p>
         <div class="sample-card sample-card-bad">
           <img src="{{url_for('static', filename='images/gender/bad/2547.jpeg')}}" class="img-card">
         </div>
@@ -144,7 +142,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal">{{gettext('Close')}}</button>
       </div>
     </div>
 

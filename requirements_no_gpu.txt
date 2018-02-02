@@ -68,3 +68,4 @@ mysql-python
 slackclient
 uwsgi
 GitPython
+Flask-Babel

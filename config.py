@@ -42,20 +42,24 @@ class Config(object):
     CHECKED_TIMES_MAX = 5
     SAMPLES_MIN_ERROR = 0.5
     NEW_SAMPLES_MIN_ERROR = 0.2
+
+    VERIFY_SAMPLES_MAX_ERROR = 0.05
+    VERIFY_NEW_SAMPLES_MAX_ERROR = 0.05
+
     SEND_EXPIRE_MIN = 4
     KEEP_TOP_MODELS_CNT = 3
 
-    TRIGGER_TRAIN_MIN_SAMPLES = 1000
-    TRIGGER_TRAIN_MAX_HOURS = 24
-    TRIGGER_TRAIN_MIN_HOURS = 3
+    TRIGGER_TRAIN_MIN_SAMPLES = 1500
+    TRIGGER_TRAIN_MAX_HOURS = 32
+    TRIGGER_TRAIN_MIN_HOURS = 4
 
-    TRIGGER_TEST_MIN_MINUTES = 20
+    TRIGGER_TEST_MIN_MINUTES = 60
 
-    TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES = 1000
-    TRIGGER_TRAIN_K_FOLDS_MAX_HOURS = 24
-    TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 3
+    TRIGGER_TRAIN_K_FOLDS_MIN_SAMPLES = 2000
+    TRIGGER_TRAIN_K_FOLDS_MAX_HOURS = 64
+    TRIGGER_TRAIN_K_FOLDS_MIN_HOURS = 12
 
-    TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 30
+    TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 180
 
     MIN_ACCURACY_TO_DEPLOY = 0.98
     TRIGGER_DEPLOY_MIN_HOURS = 3
@@ -92,6 +96,10 @@ class Config(object):
     SECURITY_TOKEN_AUTHENTICATION_HEADER = 'AuthToken'
     SECURITY_TOKEN_AUTHENTICATION_KEY = 'token'
 
+    # Translation
+    BABEL_DEFAULT_LOCALE = 'en'
+    BABEL_TRANSLATION_DIRECTORIES = '../translations'
+
     # Celery
     RABBITMQ_NAME = os.environ.get('RABBITMQ_NAME')
     RABBITMQ_PASS = os.environ.get('RABBITMQ_PASS')
@@ -118,19 +126,19 @@ class Config(object):
         },
         'auto_train_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training',
-            'schedule': timedelta(minutes=40)
+            'schedule': timedelta(minutes=120)
         },
         'auto_test_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing',
-            'schedule': timedelta(minutes=10)
+            'schedule': timedelta(minutes=30)
         },
         'auto_train_k_folds_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_training_k_folds',
-            'schedule': timedelta(minutes=60)
+            'schedule': timedelta(minutes=180)
         },
         'auto_test_k_folds_check_every_N_minutes': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing_k_folds',
-            'schedule': timedelta(minutes=10)
+            'schedule': timedelta(minutes=60)
         },
         'annotation_statistics': {
             'task': 'webtools.reannotation.cron_tasks.annotation_statistics',

@@ -1,0 +1,295 @@
+# Russian translations for PROJECT.
+# Copyright (C) 2018 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2018.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2018-02-02 15:15+0000\n"
+"PO-Revision-Date: 2018-02-02 13:11+0000\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: ru\n"
+"Language-Team: ru <LL@li.org>\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.5.3\n"
+
+#: templates/base.html:62
+msgid "Web Annotation Tools"
+msgstr "Веб-разметчик"
+
+#: templates/base.html:90
+msgid "Signed in as"
+msgstr "Вошли как"
+
+#: templates/base.html:95
+msgid "Logout"
+msgstr "Выйти"
+
+#: templates/base.html:101 templates/security/login_user.html:5
+msgid "Sign in"
+msgstr "Войти"
+
+#: templates/metrics.html:28
+msgid "Train finished time"
+msgstr "Время окончания обучения"
+
+#: templates/metrics.html:29
+msgid "Number of training samples"
+msgstr "Размер обучающей выборки"
+
+#: templates/reannotation.html:42
+msgid "Annotation"
+msgstr "Разметка"
+
+#: templates/reannotation.html:44
+msgid "total samples"
+msgstr "всего примеров"
+
+#: templates/reannotation.html:54
+msgid "total annotated"
+msgstr "всего размечено"
+
+#: templates/reannotation.html:57
+msgid "annotated"
+msgstr "размечено"
+
+#: templates/reannotation.html:67
+msgid "Metrics"
+msgstr "Метрики"
+
+#: templates/reannotation.html:71
+msgid "accuracy"
+msgstr "точность"
+
+#: templates/reannotation.html:74
+msgid "error reduction"
+msgstr "уменьшение ошибки"
+
+#: templates/reannotation.html:81
+msgid "last model have not tested yet"
+msgstr "последняя модель еще не протестирована"
+
+#: templates/reannotation.html:89
+msgid "User control"
+msgstr "Контроль за размечающими"
+
+#: templates/reannotation.html:91
+msgid "annotation info for each user"
+msgstr "информация о разметке каждого пользователя"
+
+#: templates/reannotation.html:98
+msgid "Manage"
+msgstr "Управление"
+
+#: templates/reannotation_gender.html:25
+msgid "No images to annotate"
+msgstr "Нет изображений для разметки"
+
+#: templates/reannotation_gender.html:27
+msgid "Statistics"
+msgstr "Статистика"
+
+#: templates/reannotation_gender.html:32
+msgid "Find all images with"
+msgstr "Выберите все изображения с лицами"
+
+#: templates/reannotation_gender.html:34
+msgid "woman_"
+msgstr "женского пола"
+
+#: templates/reannotation_gender.html:34
+msgid "man_"
+msgstr "мужского пола"
+
+#: templates/reannotation_gender.html:45
+msgid "Next"
+msgstr "Далее"
+
+#: templates/reannotation_gender.html:57
+msgid "woman"
+msgstr "жен."
+
+#: templates/reannotation_gender.html:57
+msgid "man"
+msgstr "муж."
+
+#: templates/reannotation_gender.html:58
+msgid "hard"
+msgstr "слож."
+
+#: templates/reannotation_gender.html:59
+msgid "bad"
+msgstr "плох."
+
+#: templates/reannotation_gender.html:77
+msgid "Annotation instructions"
+msgstr "Инструкция по разметке"
+
+#: templates/reannotation_gender.html:80
+msgid "Task"
+msgstr "Задача"
+
+#: templates/reannotation_gender.html:81
+msgid ""
+"The task is to find and select pictures of <strong>men</strong> or "
+"<strong>women</strong> as indicated in the header"
+msgstr ""
+"Необходимо найти и выделить все изображения с лицами "
+"<strong>мужского</strong> или <strong>женского</strong> пола, как указано"
+" в заголовке"
+
+#: templates/reannotation_gender.html:83
+msgid "Click on image to select it"
+msgstr "Чтобы выделить изображение просто кликните по нему"
+
+#: templates/reannotation_gender.html:84
+msgid ""
+"You can also select image by clicking on the button "
+"(<strong>woman/man</strong>)"
+msgstr ""
+"Вы можете также выделить изображение, нажав на соответствующую кнопку "
+"(<strong>муж./жен.</strong>)"
+
+#: templates/reannotation_gender.html:85
+msgid ""
+"Click on <strong>bad</strong> button if image does not contain face or "
+"image is not properly cropped"
+msgstr ""
+"Если изображение не содержит лица человека, или лицо плохо обрезано "
+"(слишком далеко или слишком близко), кликните по кнопке "
+"<strong>плох.</strong>"
+
+#: templates/reannotation_gender.html:86
+msgid ""
+"Click on <strong>hard</strong> button if it's difficult to say whether "
+"man or woman on the image"
+msgstr ""
+"Если сложно определить пол человека, кликните по кнопке "
+"<strong>слож.</strong>"
+
+#: templates/reannotation_gender.html:87
+msgid ""
+"If, despite the poor photo quality, lighting, or improper cropping, you "
+"can determine the gender of the person in the photo, be sure to specify "
+"it (<strong>do not choose a complex / bad example</strong>)"
+msgstr ""
+"Если несмотря на плохое качество фото, слабое освещение или неправильное "
+"обрезание лица вы можете определить пол человека на фото, обязательно его"
+" укажите (<strong>не надо выбирать сложный/плохой пример</strong>)"
+
+#: templates/reannotation_gender.html:88
+msgid ""
+"<span class=\"label label-info\">Blue</span> color stands for man, <span "
+"class=\"label label-warning\">yellow</span> color stands for woman"
+msgstr ""
+"<span class=\"label label-info\">Синий</span> цвет фона - мужской пол, "
+"<span class=\"label label-warning\">Желтый</span> цвет фона - женский пол"
+
+#: templates/reannotation_gender.html:90
+msgid "Examples"
+msgstr "Примеры"
+
+#: templates/reannotation_gender.html:91
+msgid "Man examples"
+msgstr "Мужчины"
+
+#: templates/reannotation_gender.html:107
+msgid "Woman examples"
+msgstr "Женщины"
+
+#: templates/reannotation_gender.html:123
+msgid "Hard examples"
+msgstr "Сложные примеры"
+
+#: templates/reannotation_gender.html:130
+msgid "Bad examples"
+msgstr "Плохие примеры"
+
+#: templates/reannotation_gender.html:145
+msgid "Close"
+msgstr "Закрыть"
+
+#: templates/user.html:17
+msgid "First name"
+msgstr "Имя"
+
+#: templates/user.html:20
+msgid "Last name"
+msgstr "Фамилия"
+
+#: templates/security/login_user.html:17 templates/security/login_user.html:21
+#: templates/user.html:23
+msgid "Email"
+msgstr "Email"
+
+#: templates/user.html:26
+msgid "Last login"
+msgstr "Последний вход"
+
+#: templates/user.html:31
+msgid "Never before"
+msgstr "Никогда ранее"
+
+#: templates/user.html:39 templates/user.html:50
+msgid "Change password"
+msgstr "Изменить пароль"
+
+#: templates/user_control.html:28
+msgid "User"
+msgstr "Пользователь"
+
+#: templates/user_control.html:29
+msgid "Annotation accuracy"
+msgstr "Точность разметки"
+
+#: templates/user_control.html:30
+msgid "Annotated count"
+msgstr "Количество размеченных примеров"
+
+#: templates/security/login_user.html:27 templates/security/login_user.html:31
+msgid "Password"
+msgstr "Пароль"
+
+#: templates/security/login_user.html:38
+msgid "Remember me"
+msgstr "Запомнить"
+
+#: templates/security/login_user.html:45
+msgid "Login"
+msgstr "Войти"
+
+#: templates/security/login_user.html:52
+msgid "Don't have an account?"
+msgstr "Нет аккаунта?"
+
+#: templates/security/login_user.html:53
+msgid "Sign Up Here"
+msgstr "Зарегистрируйтесь"
+
+#: webtools/forms.py:106
+#, fuzzy
+msgid "Time interval can't be zero"
+msgstr "Временной интервал не может быть нулевым"
+
+#: webtools/reannotation/views.py:228 webtools/reannotation/views.py:238
+msgid "Gender"
+msgstr "Пол"
+
+#: webtools/reannotation/views.py:363
+msgid "Accuracy"
+msgstr "Точность"
+
+#: webtools/reannotation/views.py:585 webtools/reannotation/views.py:682
+msgid "uncertainty"
+msgstr "неуверенность"
+
+#: webtools/reannotation/views.py:641 webtools/reannotation/views.py:682
+msgid "error"
+msgstr "ошибка"
+

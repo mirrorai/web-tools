@@ -39,3 +39,5 @@ trainroom/**/exps/exp*
 migrations/versions
 
 *.DS_Store
+*.pot
+*translations/**/*.mo
