@@ -248,7 +248,7 @@ def get_gender_problem_data():
         gender_stats_filt['user_annotated'] = gender_stats['user_annotated']
 
         gender_problem_data = {'name_id': 'gender',
-                               'name': 'Gender',
+                               'name': gettext('Gender'),
                                'stats': gender_stats_filt,
                                'annotation_url': url_for('reannotation', problem='gender'),
                                'enabled': True}
@@ -328,7 +328,12 @@ def get_gender_stats():
     else:
         total_reannotated = 0
 
-    user_annotated = app.db.session.query(GenderUserLog).filter(GenderUserLog.user_id==current_user.id).count()
+    # user_annotated = app.db.session.query(GenderUserLog).filter(GenderUserLog.user_id==current_user.id).count()
+
+    user_annotated = 0
+    info = app.db.session.query(GenderUserAnnotationInfo).filter(GenderUserLog.user_id==current_user.id).first()
+    if info:
+        user_annotated = info.annotated_num
 
     # slow
     # total_annotated = app.db.session.query(GenderSample).outerjoin(GenderUserAnnotation).\
@@ -915,14 +920,14 @@ def update_gender_data():
                     n_not_changed += 1
                     sample_db.checked_times += 1
 
-                user_log = GenderUserLog(sample_id=sample_db.id, user_id=user_id, mark_timestamp=utc)
-                app.db.session.add(user_log)
-                app.db.session.flush()
+            user_log = GenderUserLog(sample_id=sample_db.id, user_id=user_id, mark_timestamp=utc)
+            app.db.session.add(user_log)
+            app.db.session.flush()
 
-                sample_db.is_checked = True
-                sample_db.is_send = False
+            sample_db.is_checked = True
+            sample_db.is_send = False
 
-                annotated_num += 1
+            annotated_num += 1
 
         user_info = app.db.session.query(GenderUserAnnotationInfo).filter(GenderUserAnnotationInfo.user_id==user_id).first()
         if not user_info:

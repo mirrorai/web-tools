@@ -161,7 +161,7 @@ msgid ""
 "Click on <strong>bad</strong> button if image does not contain face or "
 "image is not properly cropped"
 msgstr ""
-"Если изображение не содержит лица человека, или лицо плохо обрезано "
+"Если изображение не содержит лица человека или лицо плохо обрезано "
 "(слишком далеко или слишком близко), кликните по кнопке "
 "<strong>плох.</strong>"
 
