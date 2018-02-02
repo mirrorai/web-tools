@@ -37,14 +37,25 @@
             {% if user.id == current_user.id %}
                 <div class="col-lg-4">
                     <h2>{{gettext('Change password')}}</h2>
-                    <form action="{{ url_for('security.change_password') }}" method="POST" name="change_password_form">
+                    <form action="#" method="POST" name="change_password_form">
                         {% import 'bootstrap/wtf.html' as wtf %}
                         {{ change_password_form.hidden_tag() }}
                         {{ wtf.form_errors(change_password_form, hiddens='only') }}
 
-                        {{ wtf.form_field(change_password_form.password) }}
-                        {{ wtf.form_field(change_password_form.new_password) }}
-                        {{ wtf.form_field(change_password_form.new_password_confirm) }}
+                        <div class="form-group required">
+                            <label class="control-label" for="password">{{gettext('Password')}}</label>
+                            <input class="form-control" id="password" name="password" required="" type="password" value="">
+                        </div>
+
+                        <div class="form-group  required">
+                            <label class="control-label" for="new_password">{{gettext('New Password')}}</label>
+                            <input class="form-control" id="new_password" name="new_password" required="" type="password" value="">
+                        </div>
+
+                        <div class="form-group ">
+                            <label class="control-label" for="new_password_confirm">{{gettext('Retype Password')}}</label>
+                            <input class="form-control" id="new_password_confirm" name="new_password_confirm" type="password" value="">
+                        </div>
 
                         <input class="btn btn-primary btn-lg btn-block" name="submit" type="submit"
                                value="{{gettext('Change password')}}">

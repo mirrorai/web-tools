@@ -90,14 +90,14 @@ class Config(object):
     SECURITY_REGISTERABLE = False  # Allow registrations
     SECURITY_RECOVERABLE = False  # Allow password recovery
     SECURITY_TRACKABLE = True  # Track login dates and ips
-    SECURITY_CHANGEABLE = True  # Allow password change
+    SECURITY_CHANGEABLE = False  # Allow password change
     SECURITY_PASSWORD_HASH = 'pbkdf2_sha512'
     SECURITY_PASSWORD_SALT = os.environ.get('SECURITY_PASSWORD_SALT')
     SECURITY_TOKEN_AUTHENTICATION_HEADER = 'AuthToken'
     SECURITY_TOKEN_AUTHENTICATION_KEY = 'token'
 
     # Translation
-    BABEL_DEFAULT_LOCALE = 'en'
+    BABEL_DEFAULT_LOCALE = 'ru'
     BABEL_TRANSLATION_DIRECTORIES = '../translations'
 
     # Celery

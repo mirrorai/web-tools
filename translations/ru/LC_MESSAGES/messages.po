@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2018-02-02 15:15+0000\n"
+"POT-Creation-Date: 2018-02-02 15:39+0000\n"
 "PO-Revision-Date: 2018-02-02 13:11+0000\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ru\n"
@@ -175,13 +175,13 @@ msgstr ""
 
 #: templates/reannotation_gender.html:87
 msgid ""
-"If, despite the poor photo quality, lighting, or improper cropping, you "
-"can determine the gender of the person in the photo, be sure to specify "
-"it (<strong>do not choose a complex / bad example</strong>)"
+"If, despite the poor photo quality or lighting you can determine the "
+"gender of the person in the photo, be sure to specify it (<strong>do not "
+"choose a complex / bad example</strong>)"
 msgstr ""
-"Если несмотря на плохое качество фото, слабое освещение или неправильное "
-"обрезание лица вы можете определить пол человека на фото, обязательно его"
-" укажите (<strong>не надо выбирать сложный/плохой пример</strong>)"
+"Если несмотря на плохое качество фото или слабое освещение вы можете "
+"определить пол человека на фото, обязательно его укажите (<strong>не надо"
+" выбирать сложный/плохой пример</strong>)"
 
 #: templates/reannotation_gender.html:88
 msgid ""
@@ -236,9 +236,22 @@ msgstr "Последний вход"
 msgid "Never before"
 msgstr "Никогда ранее"
 
-#: templates/user.html:39 templates/user.html:50
+#: templates/user.html:39 templates/user.html:61
 msgid "Change password"
 msgstr "Изменить пароль"
+
+#: templates/security/login_user.html:27 templates/security/login_user.html:31
+#: templates/user.html:46
+msgid "Password"
+msgstr "Пароль"
+
+#: templates/user.html:51
+msgid "New Password"
+msgstr "Новый пароль"
+
+#: templates/user.html:56
+msgid "Retype Password"
+msgstr "Повторите пароль"
 
 #: templates/user_control.html:28
 msgid "User"
@@ -251,10 +264,6 @@ msgstr "Точность разметки"
 #: templates/user_control.html:30
 msgid "Annotated count"
 msgstr "Количество размеченных примеров"
-
-#: templates/security/login_user.html:27 templates/security/login_user.html:31
-msgid "Password"
-msgstr "Пароль"
 
 #: templates/security/login_user.html:38
 msgid "Remember me"
