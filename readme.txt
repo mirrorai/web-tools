@@ -87,6 +87,7 @@ celery -A webtools.celery worker -n learning@%h -B --concurrency 1 --loglevel=in
 # rabbitmq
 # start
 /usr/local/sbin/rabbitmq-server -detached # on background
+rabbitmq-server -detached # on ubuntu
 /usr/local/sbin/rabbitmq-server #
 
 # stop
@@ -114,7 +115,7 @@ pkill -f "celery worker"
 # translations
 
 # 1. extract
-pybabel extract -F babel.cfg -o messages.pot webtools
+pybabel extract -F babel.cfg -o messages.pot .
 
 # 2. init or update
 pybabel init -i messages.pot -d translations -l ru

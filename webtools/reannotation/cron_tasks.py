@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
 from webtools import app
 import arrow
 from .models import GenderSample, GenderUserAnnotation, LearnedModel, LearningTask
@@ -32,14 +35,14 @@ def annotation_statistics():
     print('annotation statistics: {} annotated, {} for train, {} for test'.format(total_annotated_last,
                                                                                   train_annotated_last,
                                                                                   test_annotated_last))
-    msg = ':memo: Daily annotation statistics\n'
-    msg += '*Gender:*\n'
+    msg = ':memo: Статистика по разметке за последний день\n'
+    msg += '*Разметка пола:*\n'
     if total_annotated_last == 0:
-        msg += ' No annotated samples :waiting:'.format(total_annotated_last)
+        msg += ' Ничего не размечено :waiting:'.format(total_annotated_last)
     else:
-        msg += ' Total samples annotated: {}\n'.format(total_annotated_last)
-        msg += ' For training: {}\n'.format(train_annotated_last)
-        msg += ' For testing: {}'.format(test_annotated_last)
+        msg += ' Общее число размеченных изображений: {}\n'.format(total_annotated_last)
+        msg += ' Для обучения: {}\n'.format(train_annotated_last)
+        msg += ' Для тестирования: {}'.format(test_annotated_last)
 
     send_slack_message(msg)
 
@@ -143,7 +146,7 @@ def auto_training():
         msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
         msg += '{}, run training'.format(reason)
 
-        send_slack_message(msg)
+        # send_slack_message(msg)
     else:
         print('auto-training: exit')
 
@@ -262,7 +265,7 @@ def auto_training_k_folds():
         msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
         msg += 'run training for folds={}'.format(','.join([str(fold) for fold in folds_tested]))
 
-        send_slack_message(msg)
+        # send_slack_message(msg)
 
 @app.celery.task()
 def auto_testing():
@@ -356,7 +359,7 @@ def auto_testing():
         msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
         msg += '{}, run testing'.format(reason)
 
-        send_slack_message(msg)
+        # send_slack_message(msg)
     else:
         print('do not run auto-testing: no changed samples, not all samples are checked')
 
@@ -446,7 +449,7 @@ def auto_testing_k_folds():
         msg = ':vertical_traffic_light: Scheduled check\n*Gender*: '
         msg += 'run testing for folds={}'.format(','.join([str(fold) for fold in folds_tested]))
 
-        send_slack_message(msg)
+        # send_slack_message(msg)
 
 @app.celery.task()
 def auto_deploy():

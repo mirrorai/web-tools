@@ -331,7 +331,8 @@ def get_gender_stats():
     # user_annotated = app.db.session.query(GenderUserLog).filter(GenderUserLog.user_id==current_user.id).count()
 
     user_annotated = 0
-    info = app.db.session.query(GenderUserAnnotationInfo).filter(GenderUserLog.user_id==current_user.id).first()
+    info = app.db.session.query(GenderUserAnnotationInfo).filter(GenderUserAnnotationInfo.user_id==current_user.id).first()
+
     if info:
         user_annotated = info.annotated_num
 
@@ -443,7 +444,7 @@ def get_last_model_gender_metrics():
 
 def get_samples_for_ann():
 
-    prob_distr = np.array([0.4, 0.4, 0.2])
+    prob_distr = np.array([0.1, 0.8, 0.1])
     max_checked_count = app.config.get('CHECKED_TIMES_MAX')
 
     samples_out = []
@@ -466,6 +467,11 @@ def get_samples_for_ann():
 
         thres = np.cumsum(prob_distr)
         value = np.random.uniform(0, sum)
+
+        # samples, is_male = get_err_test_gender_samples(is_male_spec=is_male_out)
+        # is_male_out = is_male if is_male_out is None else is_male_out
+        # samples_out.extend(samples)
+        # break
 
         if value < thres[0]:
             # annotated images with high error and no check before
@@ -564,10 +570,11 @@ def get_new_gender_samples(is_male_spec=None, limit=21):
         ann = app.db.session.query(GenderSample,
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
-            filter(and_(GenderSample.error > min_error,
+            filter(and_(GenderSample.error >= min_error,
                         GenderSample.is_checked == False,
                         GenderSample.is_hard == False,  # no bad or hard samples
                         GenderSample.is_bad == False,
+                        GenderSample.always_test == False, # no test samples
                         or_(GenderSample.send_timestamp == None,
                             GenderSample.send_timestamp < expected_utc),
                         GenderSample.is_male == is_male_global)). \
@@ -586,6 +593,7 @@ def get_new_gender_samples(is_male_spec=None, limit=21):
         sample_data['is_male'] = int(is_male)
         sample_data['image'] = url_for('image', id=sample.image.id)
         sample_data['id'] = sample.id
+        sample_data['is_verify'] = False
         sample_data['error'] = sample.error
         sample_data['error_label'] = gettext('uncertainty')
 
@@ -613,7 +621,7 @@ def get_err_gender_samples(max_checked_count=0, min_checked_count=0, is_male_spe
         ann = app.db.session.query(GenderSample,
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
-            filter(and_(GenderSample.error > min_error,
+            filter(and_(GenderSample.error >= min_error,
                         GenderSample.checked_times <= max_checked_count,
                         GenderSample.checked_times >= min_checked_count,
                         or_(GenderSample.send_timestamp == None,
@@ -642,6 +650,60 @@ def get_err_gender_samples(max_checked_count=0, min_checked_count=0, is_male_spe
         sample_data['is_male'] = int(is_male)
         sample_data['image'] = url_for('image', id=sample.image.id)
         sample_data['id'] = sample.id
+        sample_data['is_verify'] = False
+        sample_data['error'] = sample.error
+        sample_data['error_label'] = gettext('error')
+
+        sample.is_send = True
+        sample.send_timestamp = utc
+
+        samples_data.append(sample_data)
+
+    app.db.session.flush()
+    app.db.session.commit()
+
+    return samples_data, is_male_global
+
+def get_err_test_gender_samples(is_male_spec=None):
+
+    utc = arrow.utcnow()
+    expected_utc = utc.shift(minutes=-app.config.get('SEND_EXPIRE_MIN'))
+
+    is_male_global = random.randint(0, 1) if is_male_spec is None else is_male_spec
+
+    min_error = app.config.get('SAMPLES_MIN_ERROR')
+
+    ann = []
+    for i in range(2):
+        ann = app.db.session.query(GenderSample,
+                                   case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                        else_=GenderUserAnnotation.is_male)). \
+            filter(and_(GenderSample.error >= 0.5,
+                        GenderSample.always_test == True,
+                        GenderSample.is_hard == False,  # no bad or hard samples
+                        GenderSample.is_bad == False)). \
+            outerjoin(GenderUserAnnotation). \
+            filter(
+            or_(and_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
+                     GenderSample.is_male == is_male_global,
+                     GenderSample.is_annotated_gt),
+                and_(GenderUserAnnotation.id != None,
+                     GenderUserAnnotation.is_male == is_male_global,
+                     GenderUserAnnotation.is_hard == False,
+                     GenderUserAnnotation.is_bad == False))).order_by(desc(GenderSample.error)).all()
+
+        if len(ann) > 0 or is_male_spec is not None:
+            break
+        is_male_global = not is_male_global
+
+    utc = arrow.utcnow()
+    samples_data = []
+    for sample, is_male in ann:
+        sample_data = {}
+        sample_data['is_male'] = int(is_male)
+        sample_data['image'] = url_for('image', id=sample.image.id)
+        sample_data['id'] = sample.id
+        sample_data['is_verify'] = False
         sample_data['error'] = sample.error
         sample_data['error_label'] = gettext('error')
 
@@ -683,8 +745,9 @@ def get_verify_gender_sample(is_male, is_new):
         sample_data['is_male'] = is_male
         sample_data['image'] = url_for('image', id=sample.image.id)
         sample_data['id'] = sample.id
-        sample_data['error'] = np.random.uniform(0.3, 0.5) if is_new else np.random.uniform(0.5, 0.9)
-        sample_data['error_label'] = gettext('uncertainty') if is_new else gettext('error')
+        sample_data['is_verify'] = True
+        sample_data['error'] = sample.error
+        sample_data['error_label'] = gettext('uncertainty') + "*" if is_new else gettext('error') + "*"
 
     return sample_data
 
@@ -720,7 +783,9 @@ def validate_gender_input_data(is_male, gender_data):
         args['is_male'] = args['is_male'] or ((not is_male) and (data_item['is_changed'] != 0))
         args['is_hard'] = False
         args['is_bad'] = False
-
+        args['is_verify'] = False
+        if 'is_verify' in data_item and check_is_int(data_item['is_verify']):
+            args['is_verify'] = data_item['is_verify'] != 0
         if 'is_hard' in data_item and check_is_int(data_item['is_hard']):
             args['is_hard'] = data_item['is_hard'] != 0
         if 'is_bad' in data_item and check_is_int(data_item['is_bad']):
@@ -737,6 +802,68 @@ def gender_filter_only_changed(gender_data):
         if gdata['is_bad'] or gdata['is_hard'] or gdata['is_changed']:
             out_data[sample_id] = gdata
     return out_data
+
+def get_gender_test_errors():
+    limit = 1000
+    res = app.db.session.query(GenderSample,
+                               case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                    else_=GenderUserAnnotation.is_male),
+                               case([(GenderUserAnnotation.id == None, GenderSample.is_hard)],
+                                    else_=GenderUserAnnotation.is_hard),
+                               case([(GenderUserAnnotation.id == None, GenderSample.is_bad)],
+                                    else_=GenderUserAnnotation.is_bad)). \
+        filter(and_(GenderSample.error > 0.5,
+                    GenderSample.always_test == True)). \
+        outerjoin(GenderUserAnnotation). \
+        filter(or_(GenderUserAnnotation.id != None,  # annotated or gt
+                   GenderSample.is_annotated_gt == True)).order_by(desc(GenderSample.error)).limit(limit).all()
+
+    samples_data = []
+    for sample, is_male, is_hard, is_bad in res:
+        sample_data = {}
+        sample_data['is_male'] = int(is_male)
+        sample_data['is_bad'] = int(is_bad or is_hard)
+        sample_data['image'] = url_for('image', id=sample.image.id)
+        sample_data['id'] = sample.id
+        sample_data['error'] = sample.error
+        sample_data['error_label'] = gettext('error')
+        if is_hard or is_bad:
+            continue
+        samples_data.append(sample_data)
+
+    return samples_data
+
+def get_unsure_samples():
+    limit = 1000
+    res = app.db.session.query(GenderSample,
+                               GenderSampleResult.prob_pos,
+                               case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
+                                    else_=GenderUserAnnotation.is_male),
+                               case([(GenderUserAnnotation.id == None, GenderSample.is_hard)],
+                                    else_=GenderUserAnnotation.is_hard),
+                               case([(GenderUserAnnotation.id == None, GenderSample.is_bad)],
+                                    else_=GenderUserAnnotation.is_bad)). \
+        outerjoin(GenderUserAnnotation). \
+        outerjoin(GenderSampleResult). \
+        filter(and_(GenderSample.always_test == True,
+                    GenderUserAnnotation.id != None,
+                    GenderSampleResult.prob_pos > 0.45,
+                    GenderSampleResult.prob_pos < 0.55)).limit(limit).all()
+
+    samples_data = []
+    for sample, prob_male, is_male, is_hard, is_bad in res:
+        sample_data = {}
+        sample_data['is_male'] = int(is_male)
+        sample_data['is_bad'] = int(is_bad or is_hard)
+        sample_data['image'] = url_for('image', id=sample.image.id)
+        sample_data['id'] = sample.id
+        sample_data['error'] = 1 - prob_male if prob_male > 0.5 else prob_male
+        sample_data['error_label'] = gettext('uncertainty')
+        if is_hard or is_bad:
+            continue
+        samples_data.append(sample_data)
+
+    return samples_data
 
 @app.route('/reannotation', defaults={'problem': None}, methods=['GET'])
 @app.route('/reannotation/<string:problem>', methods=['GET'])
@@ -777,6 +904,36 @@ def user_control(problem):
     if problem == 'gender':
         user_control = get_gender_user_control_data()
         return render_template('user_control.html', user_control=user_control, ctx=ctx)
+    else:
+        abort(404)
+
+@app.route('/test_errors/<string:problem>', methods=['GET'])
+@login_required
+@nocache
+def test_errors(problem):
+    moderator_permission.test(403)
+    if problem not in ['gender']:
+        abort(404)
+    ctx = {'ts': int(time.time())}
+    if problem == 'gender':
+        ctx['samples'] = get_gender_test_errors()
+        ctx['is_empty'] = len(ctx['samples']) == 0
+        return render_template('samples_view.html', ctx=ctx)
+    else:
+        abort(404)
+
+@app.route('/unsure_samples/<string:problem>', methods=['GET'])
+@login_required
+@nocache
+def unsure_samples(problem):
+    moderator_permission.test(403)
+    if problem not in ['gender']:
+        abort(404)
+    ctx = {'ts': int(time.time())}
+    if problem == 'gender':
+        ctx['samples'] = get_unsure_samples()
+        ctx['is_empty'] = len(ctx['samples']) == 0
+        return render_template('samples_view.html', ctx=ctx)
     else:
         abort(404)
 
@@ -827,18 +984,10 @@ def update_gender_data():
             sample_db = samples_db_data[sample_id].GenderSample
             user_ann_db = samples_db_data[sample_id].GenderUserAnnotation
 
-            is_verify = False
+            is_verify = gdata['is_verify']
             is_changed = False
 
             if user_ann_db is None:
-
-                is_verify = False
-                if not sample_db.is_annotated_gt:
-                    if sample_db.error < verify_new_samples_max_err:
-                        is_verify = True
-                else:
-                    if sample_db.error < verify_samples_max_err:
-                        is_verify = True
 
                 if is_verify:
                     # verification of user annotation precision
@@ -881,8 +1030,8 @@ def update_gender_data():
                         app.db.session.add(user_gender_ann)
                         app.db.session.flush()
             else:
-                if sample_db.error < verify_samples_max_err:
-                    is_verify = True
+                if is_verify:
+
                     control_num += 1
 
                     db_is_hard = user_ann_db.is_hard or user_ann_db.is_bad

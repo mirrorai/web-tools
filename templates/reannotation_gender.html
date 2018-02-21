@@ -24,8 +24,8 @@
     <div class="starter-template" style="padding: 0px 15px; text-align: center;">
       <h1>{{gettext('No images to annotate')}}.</h1>
       <p class="lead">
-        {{gettext('Statistics')}}: {{ctx['stats']['total']}} gettext('total images'), {{ctx['stats']['total_reannotated']}} gettext('images annotated').
-        <br> <a href="/reannotation">Go back</a> to select task.
+        {{gettext('Statistics')}}: {{ctx['stats']['total']}} {{gettext('total images')}}, {{ctx['stats']['user_annotated']}} {{gettext('images annotated')}}.
+        <br> {{gettext('<a href="/reannotation">Go back</a> to select task.')}}
       </p>
     </div>
   {% else %}
@@ -59,7 +59,7 @@
               <button type="button" style="width: 46px;" class="btn btn-default btn-gender-bad">{{gettext('bad')}}</button>
             </div>
           </div>
-          <div class="gender-data-container" data-sample-id="{{sample['id']}}"></div>
+          <div class="gender-data-container" data-sample-id="{{sample['id']}}" data-is-verify="{{1 if sample['is_verify'] else 0}}"></div>
         </div>
     {% endfor %}
     <div class="footer" style="height: 40px;"></div>

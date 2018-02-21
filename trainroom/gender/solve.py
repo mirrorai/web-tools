@@ -62,7 +62,7 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False,
             if cfg.TRAIN.PRETRAINED:
                 sym_model, arg_params, aux_params = model.get_model_pretrained(cfg)
             else:
-                sym_model = model.get_model(cfg)
+                sym_model = model.get_model(join(trainroom_dir, 'models'), cfg)
                 arg_params = None
                 aux_params = None
             initw, optimizer, optimizer_params = opt_params.get_optimizer_params(total_samples, cfg)

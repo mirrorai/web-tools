@@ -14,13 +14,17 @@ def get_optimizer_params(total_samples, cfg):
     momentum = None
 
     base_lr = 1e-4
-    factor_d = 0.5
+    factor_d = 0.1
     optimizer = 'adam'
     # momentum = 0.9
     wd = 0.00001
-    epochs_steps = [3]
+    epochs_steps = [30, 45]
 
-    iter_steps = [int(s * total_samples / cfg.TRAIN.BATCH_SIZE) for s in epochs_steps]
+    iters_per_epoch = int(total_samples / cfg.TRAIN.BATCH_SIZE)
+    iters_per_epoch += 0 if total_samples % cfg.TRAIN.BATCH_SIZE == 0 else 1
+
+    iter_steps = [int(st * iters_per_epoch) for st in epochs_steps]
+
     lr_sch = mx.lr_scheduler.MultiFactorScheduler(iter_steps, factor=factor_d)
 
     optimizer_params = []

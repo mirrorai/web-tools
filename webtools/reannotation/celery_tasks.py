@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 from webtools import app
@@ -733,8 +734,8 @@ def run_gender_deploy(updater, task_id, model_id):
         failed = True
 
     if not failed:
-        msg = ':rocket: *Gender*: '
-        msg += 'model #{} with accuracy={:.3f}% has been deployed!'.format(top_model.LearnedModel.id,
+        msg = ':rocket: *Классификация пола*: '
+        msg += 'Модель #{} с точностью={:.3f}% залита на staging!'.format(top_model.LearnedModel.id,
                                                                             top_model.AccuracyMetric.accuracy * 100.)
 
         send_slack_message(msg)
@@ -828,27 +829,28 @@ def report_gender_metric():
     if len(models_tested) == 0:
         return None
 
-    best_model = max(models_tested, key=lambda x: x[1])
+    best_models = sorted(models_tested, key=lambda x: x[1], reverse=True)
+    best_model = best_models[0]
 
     cur_accuracy = models[0][1]
     if cur_accuracy is None:
         return None
 
-    cur_error = 1 - cur_accuracy
-    if len(models) > 1 and models[1][1] is not None:
-        prev_accuracy = models[1][1]
-        prev_error = 1 - prev_accuracy
-        reduction = prev_error / cur_error if cur_error > 1e-12 else 1.0
-        msg = 'Best model is #{}: accuracy: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
-        msg += 'Previous model is #{}: accuracy: {:.3f}%\n'.format(models[1][0], 100 * prev_accuracy)
-        msg += 'Last model is #{}: accuracy: {:.3f}%\n'.format(models[0][0], 100 * cur_accuracy)
-        msg += '{}'.format(url_for('metrics', problem=problem_name))
-    else:
-        msg = 'Best model is #{}: accuracy: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
-        msg += 'Last model is #{}: accuracy: {:.3f}%\n'.format(models[0][0], 100 * cur_accuracy)
-        msg += '{}'.format(url_for('metrics', problem=problem_name))
+    if best_model is not models[0]:
+        return None
 
-    msg = ':loudspeaker: Test finished\n*Gender:*\n{}'.format(msg)
+    if len(best_models) > 1:
+        prev_best_err = 1 - best_models[1][1]
+        cur_best_err = 1 - best_model[1]
+        err_ratio = prev_best_err / cur_best_err if cur_best_err > 1e-12 else 1.0
+        msg = 'Лучшая модель #{}: точность: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
+        msg += 'Улучшение в {:.3f} раза\n'.format(err_ratio)
+    else:
+        msg = 'Лучшая модель #{}: точность: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
+
+    msg += 'Подробнее: {}'.format(url_for('metrics', problem=problem_name))
+
+    msg = ':loudspeaker: \n*Классификация пола:*\n{}'.format(msg)
     send_slack_message(msg)
 
 def report_gender_train(model):
@@ -864,4 +866,4 @@ def report_gender_train(model):
     msg += 'Training time: {}'.format(model.finished_ts.humanize(model.started_ts, only_distance=True))
 
     msg = ':loudspeaker: Train finished\n*Gender:*\n{}'.format(msg)
-    send_slack_message(msg)
+    # send_slack_message(msg)

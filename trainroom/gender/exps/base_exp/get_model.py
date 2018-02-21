@@ -18,13 +18,13 @@ def get_model_pretrained(cfg):
 
     return top, arg_params, aux_params
 
-def get_model(cfg):
+def get_model(model_dir, cfg):
 
     label = mx.sym.var('label')
 
     current_path = dirname(abspath(__file__))
 
-    sym_model = mx.sym.load(join(current_path, 'resnet-18-symbol.json'))
+    sym_model = mx.sym.load(join(model_dir, 'resnet-18-symbol.json'))
     all_layers = sym_model.get_internals()
     net = all_layers['flatten0_output']
     fc = mx.symbol.FullyConnected(data=net, num_hidden=cfg.CLS_NUM, name='fc')

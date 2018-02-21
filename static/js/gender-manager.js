@@ -203,6 +203,10 @@ var GenderManager =  new function() {
             if (!(typeof is_bad === 'undefined') && is_bad === 1) {
                 data_item['is_bad'] = 1;
             }
+            var is_verify = data_container.data('is-verify');
+            if (!(typeof is_verify === 'undefined') && is_verify === 1) {
+                data_item['is_verify'] = 1;
+            }
             data[sample_id] = data_item;
         });
 

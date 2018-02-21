@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2018-02-02 15:39+0000\n"
+"POT-Creation-Date: 2018-02-08 14:10+0000\n"
 "PO-Revision-Date: 2018-02-02 13:11+0000\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ru\n"
@@ -94,6 +94,18 @@ msgstr "Нет изображений для разметки"
 #: templates/reannotation_gender.html:27
 msgid "Statistics"
 msgstr "Статистика"
+
+#: templates/reannotation_gender.html:27
+msgid "total images"
+msgstr "всего изображений"
+
+#: templates/reannotation_gender.html:27
+msgid "images annotated"
+msgstr "размечено"
+
+#: templates/reannotation_gender.html:28
+msgid "<a href=\"/reannotation\">Go back</a> to select task."
+msgstr "<a href=\"/reannotation\">Назад</a> к выборку задач."
 
 #: templates/reannotation_gender.html:32
 msgid "Find all images with"
@@ -282,23 +294,23 @@ msgid "Sign Up Here"
 msgstr "Зарегистрируйтесь"
 
 #: webtools/forms.py:106
-#, fuzzy
 msgid "Time interval can't be zero"
 msgstr "Временной интервал не может быть нулевым"
 
 #: webtools/reannotation/views.py:228 webtools/reannotation/views.py:238
+#: webtools/reannotation/views.py:251
 msgid "Gender"
 msgstr "Пол"
 
-#: webtools/reannotation/views.py:363
+#: webtools/reannotation/views.py:369
 msgid "Accuracy"
 msgstr "Точность"
 
-#: webtools/reannotation/views.py:585 webtools/reannotation/views.py:682
+#: webtools/reannotation/views.py:592 webtools/reannotation/views.py:689
 msgid "uncertainty"
 msgstr "неуверенность"
 
-#: webtools/reannotation/views.py:641 webtools/reannotation/views.py:682
+#: webtools/reannotation/views.py:648 webtools/reannotation/views.py:689
 msgid "error"
 msgstr "ошибка"
 
