@@ -13,7 +13,6 @@ from callbacks import StatusUpdater
 import time
 
 import logging
-logging.getLogger().setLevel(logging.INFO)
 
 def cfg_fix_paths(cfg, exp_dir, model_dir):
     if cfg.TRAIN.DEBUG_IMAGES:
@@ -26,6 +25,26 @@ def cfg_fix_paths(cfg, exp_dir, model_dir):
         cfg.TRAIN.PRETRAINED = join(model_dir, cfg.TRAIN.PRETRAINED)
 
 def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False, gpu_id=None):
+
+    logs_dir = join(exp_dir, 'logs')
+    if not isdir(logs_dir):
+        mkdir(logs_dir)
+
+    log_filename = '{}-train.log'.format(time.strftime("%Y-%m-%d_%H-%M-%S", time.gmtime()))
+    log_path = join(logs_dir, log_filename)
+
+    root = logging.getLogger()
+
+    # create file handler which logs messages
+    fh = logging.FileHandler(log_path)
+    fh.setLevel(logging.INFO)
+    # fh.setFormatter(formatter)
+    root.addHandler(fh)
+
+    # logging.basicConfig(level=logging.INFO,
+    #                     filename=join(logs_dir, log_filename),
+    #                     filemode='w')
+    logging.info('training log')
 
     snapshots_dir = join(exp_dir, 'snapshots')
     if not isdir(snapshots_dir):
@@ -104,7 +123,7 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False,
 
     if resume_model:
         model.fit(train_iter,  # train data
-                  # eval_data=val_iter,  # validation data
+                  eval_data=val_iter,  # validation data
                   eval_metric=eval_metric,  # report accuracy during training
                   batch_end_callback = batch_end_callback, # output progress for each 100 data batches
                   epoch_end_callback = epoch_end_callbacks,
@@ -117,7 +136,7 @@ def solve(ctx, samples, samples_val, trainroom_dir, exp_dir, resume_model=False,
         model.init_optimizer(optimizer=optimizer, optimizer_params=optimizer_params)
 
         model.fit(train_iter,  # train data
-                  # eval_data=val_iter,  # validation data
+                  eval_data=val_iter,  # validation data
                   # eval_metric=mx.metric.MSE(),  # report accuracy during training
                   eval_metric=eval_metric,  # report accuracy during training
                   batch_end_callback = batch_end_callback, # output progress for each 100 data batches

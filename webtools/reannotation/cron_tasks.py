@@ -39,12 +39,13 @@ def annotation_statistics():
     msg += '*Разметка пола:*\n'
     if total_annotated_last == 0:
         msg += ' Ничего не размечено :waiting:'.format(total_annotated_last)
+        # send_slack_message(msg)
     else:
         msg += ' Общее число размеченных изображений: {}\n'.format(total_annotated_last)
         msg += ' Для обучения: {}\n'.format(train_annotated_last)
         msg += ' Для тестирования: {}'.format(test_annotated_last)
 
-    send_slack_message(msg)
+        send_slack_message(msg)
 
 @app.celery.task()
 def auto_training():

@@ -76,42 +76,51 @@ def dump_task(self):
     return {'current': 100, 'total': 100, 'status': 'Task completed.',
             'result': 0}
 
-def get_test_samples(for_model_id, k_fold=None):
+def get_test_samples(for_model_id, k_fold=None, only_annotated=False):
 
-    subq = app.db.session.query(GenderSampleResult).\
-        filter(GenderSampleResult.model_id == for_model_id).subquery('t')
+    if for_model_id is not None:
+        subq = app.db.session.query(GenderSampleResult).\
+            filter(GenderSampleResult.model_id == for_model_id).subquery('t')
+    else:
+        subq = None
 
     if k_fold is not None:
         # (sample_id, is_male (picked from annotation or gt), prob female, prob male)
         res = app.db.session.query(GenderSample,
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
-            filter(and_(GenderSample.is_hard != None, #temporary,  == False, but maybe == True is needed
-                        GenderSample.is_bad != None, #temporary == False, but maybe == True is needed
+            filter(and_(GenderSample.is_hard == False,
+                        GenderSample.is_bad == False,
                         GenderSample.k_fold != None,
                         GenderSample.k_fold == k_fold)). \
             outerjoin(GenderUserAnnotation). \
             filter(or_(GenderUserAnnotation.id == None,
                        and_(GenderUserAnnotation.id != None,
-                            GenderUserAnnotation.is_hard != None, #temporary,  == False, but maybe == True is needed
-                            GenderUserAnnotation.is_bad != None))). \
-            outerjoin(subq). \
-            filter(subq.c.id == None).all()
+                            GenderUserAnnotation.is_hard == False,
+                            GenderUserAnnotation.is_bad == False)))
     else:
         # (sample_id, is_male (picked from annotation or gt), prob female, prob male)
         res = app.db.session.query(GenderSample,
                                    case([(GenderUserAnnotation.id == None, GenderSample.is_male)],
                                         else_=GenderUserAnnotation.is_male)). \
-            filter(and_(GenderSample.is_hard != None,  # no bad or hard samples
-                        GenderSample.is_bad != None,
+            filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
+                        GenderSample.is_bad == False,
                         GenderSample.always_test == True)). \
             outerjoin(GenderUserAnnotation). \
             filter(or_(GenderUserAnnotation.id == None,
                        and_(GenderUserAnnotation.id != None,
-                            GenderUserAnnotation.is_hard != None, #temporary == False, but maybe == True is needed
-                            GenderUserAnnotation.is_bad != None))).\
-            outerjoin(subq).\
-            filter(subq.c.id==None).all()
+                            GenderUserAnnotation.is_hard == False,
+                            GenderUserAnnotation.is_bad == False)))
+
+    if only_annotated:
+        res = res.filter(or_(GenderSample.is_annotated_gt, GenderUserAnnotation.id != None))
+
+    if subq is None:
+        res = res.all()
+    else:
+        res = res. \
+            outerjoin(subq). \
+            filter(subq.c.id == None).all()
 
     samples = [(s.GenderSample.image.filename(), 1 if s[1] else 0, s.GenderSample.id) for s in res]
 
@@ -158,6 +167,8 @@ def get_train_samples(k_fold=None):
         if idx % N == 0:
             print('+{} samples, loaded = {}'.format(N, idx))
         samples.append((s.GenderSample.image.filename(), 1 if s[1] else 0, s.GenderSample.id))
+        # if idx > 10000:
+        #     break
 
     return samples
 
@@ -213,7 +224,9 @@ def run_gender_train(updater, task_id, k_fold=None):
     updater.update_state(state='PROGRESS', progress=0.01, status='Preparing samples for training..')
 
     samples = get_train_samples(k_fold=k_fold)
-    print('number of samples: {}'.format(len(samples)))
+    test_samples = get_test_samples(None, only_annotated=True)
+    print('number of train samples: {}'.format(len(samples)))
+    print('number of test samples: {}'.format(len(test_samples)))
 
     if len(samples) == 0:
         updater.update_state(state='FAILURE', progress=1.0, status='No samples to train on')
@@ -235,7 +248,10 @@ def run_gender_train(updater, task_id, k_fold=None):
         # prepare experiment directory
         exp_fold = 'fold{}'.format(k_fold) if k_fold is not None else 'main'
         exp_dir = join(trainroom_gender, 'exps', 'exp{}_{}'.format(exp_num, exp_fold))
-        exp_base = join(trainroom_gender, 'exps', 'base_exp')
+
+        base_exp_dir = 'base_exp' if k_fold is None else 'base_exp_k_folds'
+
+        exp_base = join(trainroom_gender, 'exps', base_exp_dir)
 
         # copy scripts for training
         if not isdir(exp_dir):
@@ -247,7 +263,7 @@ def run_gender_train(updater, task_id, k_fold=None):
         # run training
         with add_path(trainroom_gender):
             solve_module = __import__('solve')
-            snapshot_prefix, epoch = solve_module.solve(updater, samples, [], trainroom_dir, exp_dir, gpu_id=gpu_id)
+            snapshot_prefix, epoch = solve_module.solve(updater, samples, test_samples, trainroom_dir, exp_dir, gpu_id=gpu_id)
             del sys.modules['solve']
 
         # udpate model in db

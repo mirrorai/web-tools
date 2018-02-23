@@ -103,6 +103,31 @@ class GetSamples(Command):
                 fp.write('{};{};{};{};{}\n'.format(db_name,imname,int(is_hard),int(is_bad),int(is_male)))
         print('finished successfully.')
 
+class ResetCheckedNotAnnotated(Command):
+    """reset checked but not annotated"""
+
+    def __init__(self, func=None):
+        super(ResetCheckedNotAnnotated, self).__init__(func=func)
+
+    def run(self):
+
+        res = app.db.session.query(GenderSample).\
+            filter(and_(GenderSample.is_checked == True,
+                        GenderSample.is_annotated_gt == False)).\
+            outerjoin(GenderUserAnnotation). \
+            filter(GenderUserAnnotation.id == None).all()
+
+        n_samples = len(res)
+        print('number of samples to reset: {}'.format(n_samples))
+        if n_samples > 0:
+            print('processing...')
+            for idx, s in enumerate(res):
+                s.is_checked = False
+
+            app.db.session.flush()
+            app.db.session.commit()
+        print('all done.')
+
 class AddImageDB(Command):
     """Adds images to DB"""
     option_list = (

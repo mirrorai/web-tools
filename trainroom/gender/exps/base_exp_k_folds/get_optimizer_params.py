@@ -18,7 +18,7 @@ def get_optimizer_params(total_samples, cfg):
     optimizer = 'adam'
     # momentum = 0.9
     wd = 0.00001
-    epochs_steps = [24]
+    epochs_steps = [8]
 
     iters_per_epoch = int(total_samples / cfg.TRAIN.BATCH_SIZE)
     iters_per_epoch += 0 if total_samples % cfg.TRAIN.BATCH_SIZE == 0 else 1

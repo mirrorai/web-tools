@@ -8,7 +8,7 @@ from flask_migrate import Migrate, MigrateCommand
 
 from webtools import app, models
 from webtools.script import ResetDb, DatabaseCommand, CleanWasteImages, CleanCache, \
-        CleanSamples, AddImageDB, CleanModels, GetSamples
+        CleanSamples, AddImageDB, CleanModels, GetSamples, ResetCheckedNotAnnotated
 
 from webtools.tests.script import RunTests
 
@@ -32,6 +32,7 @@ if __name__ == '__main__':
     manager.add_command('add_imdb', AddImageDB)
     manager.add_command('clean_models', CleanModels)
     manager.add_command('get_samples', GetSamples)
+    manager.add_command('reset_check', ResetCheckedNotAnnotated)
 
     manager.add_command('clean_waste_images', CleanWasteImages)
     manager.add_command('clean_cache', CleanCache)
