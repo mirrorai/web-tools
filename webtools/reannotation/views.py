@@ -444,7 +444,7 @@ def get_last_model_gender_metrics():
 
 def get_samples_for_ann():
 
-    prob_distr = np.array([0.1, 0.8, 0.1])
+    prob_distr = np.array([0.5, 0.4, 0.1])
     max_checked_count = app.config.get('CHECKED_TIMES_MAX')
 
     samples_out = []
@@ -630,14 +630,19 @@ def get_err_gender_samples(max_checked_count=0, min_checked_count=0, is_male_spe
                         GenderSample.is_hard == False,  # no bad or hard samples
                         GenderSample.is_bad == False)). \
             outerjoin(GenderUserAnnotation). \
-            filter(
-            or_(and_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
-                     GenderSample.is_male == is_male_global,
-                     GenderSample.is_annotated_gt),
-                and_(GenderUserAnnotation.id != None,
-                     GenderUserAnnotation.is_male == is_male_global,
-                     GenderUserAnnotation.is_hard == False,
-                     GenderUserAnnotation.is_bad == False))).order_by(desc(GenderSample.error)).limit(limit).all()
+            filter(and_(GenderUserAnnotation.id != None,
+                        GenderUserAnnotation.is_male == is_male_global,
+                        GenderUserAnnotation.is_hard == False,
+                        GenderUserAnnotation.is_bad == False)).order_by(desc(GenderSample.error)).limit(limit).all()
+
+            # filter(
+            # or_(and_(GenderUserAnnotation.id == None,  # if sample has annotation check it is not marked as hard or bad
+            #          GenderSample.is_male == is_male_global,
+            #          GenderSample.is_annotated_gt),
+            #     and_(GenderUserAnnotation.id != None,
+            #          GenderUserAnnotation.is_male == is_male_global,
+            #          GenderUserAnnotation.is_hard == False,
+            #          GenderUserAnnotation.is_bad == False))).order_by(desc(GenderSample.error)).limit(limit).all()
 
         if len(ann) > 0 or is_male_spec is not None:
             break
@@ -845,12 +850,13 @@ def get_unsure_samples():
                                     else_=GenderUserAnnotation.is_bad)). \
         outerjoin(GenderUserAnnotation). \
         outerjoin(GenderSampleResult). \
-        filter(and_(GenderSample.always_test == True,
+        filter(and_(GenderSample.always_test == False,
                     GenderUserAnnotation.id != None,
-                    GenderSampleResult.prob_pos > 0.45,
-                    GenderSampleResult.prob_pos < 0.55)).limit(limit).all()
+                    GenderSampleResult.prob_pos > 0.49,
+                    GenderSampleResult.prob_pos < 0.51)).limit(limit).all()
 
     samples_data = []
+
     for sample, prob_male, is_male, is_hard, is_bad in res:
         sample_data = {}
         sample_data['is_male'] = int(is_male)

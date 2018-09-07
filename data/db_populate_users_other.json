@@ -3,6 +3,16 @@
         {
           "name": "add_users",
           "users": [
+            {
+              "first_name": "Татьяна",
+              "last_name": "Архипова",
+              "email": "tatyana.arkhiipova@gmail.com",
+              "password": "8qrxa6uf",
+              "roles": [
+                "annotator"
+              ],
+              "active": true
+            }
 //            {
 //              "first_name": "Demo",
 //              "last_name": "Demo",
@@ -13,16 +23,6 @@
 //              ],
 //              "active": true
 //            },
-            {
-              "first_name": "Admin",
-              "last_name": "",
-              "email": "admin@mirror-ai.com",
-              "password": "mirroraiadmin",
-              "roles": [
-                "admin", "moderator", "annotator"
-              ],
-              "active": true
-            }
           ]
         }
     ]

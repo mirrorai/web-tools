@@ -91,6 +91,7 @@ def get_test_samples(for_model_id, k_fold=None, only_annotated=False):
                                         else_=GenderUserAnnotation.is_male)). \
             filter(and_(GenderSample.is_hard == False,
                         GenderSample.is_bad == False,
+                        # GenderSample.is_annotated_gt == False, # <--- ONLY NEW DATA
                         GenderSample.k_fold != None,
                         GenderSample.k_fold == k_fold)). \
             outerjoin(GenderUserAnnotation). \
@@ -105,6 +106,7 @@ def get_test_samples(for_model_id, k_fold=None, only_annotated=False):
                                         else_=GenderUserAnnotation.is_male)). \
             filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
                         GenderSample.is_bad == False,
+                        # GenderSample.is_annotated_gt == False,  # <--- ONLY NEW DATA
                         GenderSample.always_test == True)). \
             outerjoin(GenderUserAnnotation). \
             filter(or_(GenderUserAnnotation.id == None,
@@ -136,6 +138,7 @@ def get_train_samples(k_fold=None):
             filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
                         GenderSample.is_bad == False,
                         GenderSample.always_test == False,
+                        # GenderSample.is_annotated_gt == False,  # <--- ONLY NEW DATA
                         GenderSample.k_fold != None,
                         GenderSample.k_fold != k_fold)). \
             outerjoin(GenderUserAnnotation). \
@@ -151,6 +154,7 @@ def get_train_samples(k_fold=None):
                                         else_=GenderUserAnnotation.is_male)). \
             filter(and_(GenderSample.is_hard == False,  # no bad or hard samples
                         GenderSample.is_bad == False,
+                        # GenderSample.is_annotated_gt == False,  # <--- ONLY NEW DATA
                         GenderSample.always_test == False)). \
             outerjoin(GenderUserAnnotation). \
             filter(or_(and_(GenderUserAnnotation.id == None,
@@ -166,7 +170,9 @@ def get_train_samples(k_fold=None):
         idx += 1
         if idx % N == 0:
             print('+{} samples, loaded = {}'.format(N, idx))
+        # if s.GenderSample.image.imdb.name == 'person_cluster_15_11_17_240x320':
         samples.append((s.GenderSample.image.filename(), 1 if s[1] else 0, s.GenderSample.id))
+
         # if idx > 10000:
         #     break
 
@@ -759,6 +765,7 @@ def run_gender_deploy(updater, task_id, model_id):
         app.db.session.query(LearnedModel).update(dict(is_deployed=False))
 
         top_model.LearnedModel.is_deployed = True
+        top_model.LearnedModel.was_deployed = True
         app.db.session.flush()
         app.db.session.commit()
 
@@ -860,7 +867,8 @@ def report_gender_metric():
         cur_best_err = 1 - best_model[1]
         err_ratio = prev_best_err / cur_best_err if cur_best_err > 1e-12 else 1.0
         msg = 'Лучшая модель #{}: точность: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
-        msg += 'Улучшение в {:.3f} раза\n'.format(err_ratio)
+        if err_ratio > 1:
+            msg += 'Улучшение в {:.3f} раза\n'.format(err_ratio)
     else:
         msg = 'Лучшая модель #{}: точность: {:.3f}%\n'.format(best_model[0], 100 * best_model[1])
 

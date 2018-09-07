@@ -423,6 +423,8 @@ def auto_testing_k_folds():
                 reason = 'all samples have been checked'
                 trigger_test = True
 
+        trigger_test = True
+
         if trigger_test:
             print('run k-fold {} auto-testing: {}'.format(k_fold, reason))
 

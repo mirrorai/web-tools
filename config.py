@@ -62,7 +62,7 @@ class Config(object):
     TRIGGER_TEST_K_FOLDS_MIN_MINUTES = 24*60
 
     MIN_ACCURACY_TO_DEPLOY = 0.98
-    TRIGGER_DEPLOY_MIN_HOURS = 24
+    TRIGGER_DEPLOY_MIN_HOURS = 48
 
     GPU_IDS = [3]
 
@@ -126,19 +126,19 @@ class Config(object):
         },
         'auto_train_check_every_N_hours': {
             'task': 'webtools.reannotation.cron_tasks.auto_training',
-            'schedule': timedelta(hours=6)
+            'schedule': timedelta(hours=12)
         },
-        'auto_test_check_every_N_minutes': {
+        'auto_test_check_every_N_hours': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing',
-            'schedule': timedelta(minutes=240)
+            'schedule': timedelta(hours=6)
         },
         'auto_train_k_folds_check_every_N_hours': {
             'task': 'webtools.reannotation.cron_tasks.auto_training_k_folds',
-            'schedule': timedelta(hours=6)
+            'schedule': timedelta(hours=24)
         },
         'auto_test_k_folds_check_every_N_hours': {
             'task': 'webtools.reannotation.cron_tasks.auto_testing_k_folds',
-            'schedule': timedelta(hours=4)
+            'schedule': timedelta(hours=6)
         },
         'annotation_statistics': {
             'task': 'webtools.reannotation.cron_tasks.annotation_statistics',
@@ -146,7 +146,7 @@ class Config(object):
         },
         'auto_deploy_check_every_N_hours': {
             'task': 'webtools.reannotation.cron_tasks.auto_deploy',
-            'schedule': timedelta(hours=32)
+            'schedule': timedelta(hours=48)
         }
     }
 

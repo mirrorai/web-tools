@@ -18,7 +18,7 @@ def parse_args():
     return args
 
 
-def parse_train_log(log_path):
+def parse_train_log_epoch(log_path):
     iters = []
     losses = []
 
@@ -31,6 +31,26 @@ def parse_train_log(log_path):
                 losses.append(float(accuracy))
 
     return np.array(iters[5:]), np.array(losses[5:])
+
+def parse_train_log(log_path):
+    epochs = []
+    batches = []
+    losses = []
+
+    with open(log_path, 'r') as f:
+        for line in f.readlines():
+            # m = re.match(r".*Epoch\[([-+]?\d+)\].*loss=([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)", line)
+            m = re.match(r".*Epoch\[([-+]?\d+)\] Batch \[([-+]?\d+)\].*accuracy=([-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?)", line)
+            if m:
+                epoch, batch, accuracy = m.group(1,2,3)
+                epochs.append(int(epoch))
+                batches.append(int(batch))
+                losses.append(float(accuracy))
+
+    batch_max = max(batches)
+    iters = [e + float(b) / batch_max for e, b in zip(epochs, batches)]
+
+    return np.array(iters), np.array(losses)
 
 
 def moving_average(a, n=3) :
